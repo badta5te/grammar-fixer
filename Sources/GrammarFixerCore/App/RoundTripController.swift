@@ -16,6 +16,7 @@ public final class RoundTripController {
     private let notices: any NoticePresenting
     private let results: any ResultPresenting
     private let environment: any RoundTripEnvironment
+    private let budget: @MainActor () -> BudgetNotice?
     private let onAccessibilityDenied: () -> Void
 
     private var hotKey: HotKey?
@@ -29,6 +30,9 @@ public final class RoundTripController {
         transform: TextTransforming,
         notices: any NoticePresenting,
         results: any ResultPresenting,
+        /// Where the month stands, read afresh while the panel is open so the
+        /// round that passes the limit is the round that says so.
+        budget: @escaping @MainActor () -> BudgetNotice? = { nil },
         environment: any RoundTripEnvironment = SystemEnvironment(),
         onAccessibilityDenied: @escaping () -> Void
     ) {
@@ -40,6 +44,7 @@ public final class RoundTripController {
         self.notices = notices
         self.results = results
         self.environment = environment
+        self.budget = budget
         self.onAccessibilityDenied = onAccessibilityDenied
     }
 
@@ -143,7 +148,11 @@ public final class RoundTripController {
     /// The correction is shown before it goes anywhere. Nothing is pasted on
     /// its own any more: the round ends where the person decides it ends.
     private func correct(_ text: String, in sourceApp: NSRunningApplication, snapshot: ClipboardSnapshot) async {
-        let session = CorrectionSession(source: text, produce: { [transform] in transform.stream($0) })
+        let session = CorrectionSession(
+            source: text,
+            produce: { [transform] in transform.stream($0) },
+            budget: budget
+        )
         session.start()
 
         // Read before the panel appears and kept for the dismissal: the

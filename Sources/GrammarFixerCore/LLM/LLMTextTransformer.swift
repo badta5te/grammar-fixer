@@ -8,6 +8,7 @@ public struct LLMTextTransformer: TextTransforming {
     private let loadConfiguration: () throws -> ProviderConfiguration
     private let loadPrompt: () -> Prompt
     private let makeClient: (ProviderConfiguration) -> any LLMClient
+    private let record: @MainActor (UsageRecord) -> Void
 
     /// Both the configuration and the prompt arrive as closures rather than as
     /// values. They are read again on every round, so a model or a prompt
@@ -17,11 +18,13 @@ public struct LLMTextTransformer: TextTransforming {
         loadConfiguration: @escaping () throws -> ProviderConfiguration,
         loadPrompt: @escaping () -> Prompt = { .default },
         makeClient: @escaping (ProviderConfiguration) -> any LLMClient
-            = { ProviderStore.makeClient(for: $0) }
+            = { ProviderStore.makeClient(for: $0) },
+        record: @escaping @MainActor (UsageRecord) -> Void = { _ in }
     ) {
         self.loadConfiguration = loadConfiguration
         self.loadPrompt = loadPrompt
         self.makeClient = makeClient
+        self.record = record
     }
 
     /// The correction as it happens. The panel draws this: the answer appears
@@ -31,6 +34,37 @@ public struct LLMTextTransformer: TextTransforming {
     public func stream(_ text: String) -> AsyncThrowingStream<CorrectionEvent, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task { @MainActor in
+                // Declared out here so that every way out of the round can
+                // pay for it. A round that was cut short or broke off halfway
+                // was still generated, and a provider bills for what it
+                // generated.
+                var answer = ""
+                var usage: TokenUsage?
+                var round: (configuration: ProviderConfiguration, prompt: String)?
+                var billed = false
+
+                @MainActor func bill() {
+                    // Once per round, whichever way the round ends. An answer
+                    // that sanitized to nothing is paid for here and then
+                    // throws, and the catch below would otherwise charge the
+                    // same round a second time.
+                    guard !billed else { return }
+                    guard let round else { return }
+                    guard usage != nil || !answer.isEmpty else { return }
+                    record(UsageRecord(
+                        date: Date(),
+                        provider: round.configuration.providerId,
+                        model: round.configuration.model,
+                        // The whole prompt is paid for, not just the selection
+                        // inside it: the instructions go to the provider on
+                        // every round.
+                        promptTokens: usage?.promptTokens ?? TokenEstimate.tokens(in: round.prompt),
+                        completionTokens: usage?.completionTokens ?? TokenEstimate.tokens(in: answer),
+                        isEstimated: usage == nil
+                    ))
+                    billed = true
+                }
+
                 do {
                     // Both are re-read on every round: switching models or
                     // editing the prompt has to take effect without restarting
@@ -42,10 +76,11 @@ public struct LLMTextTransformer: TextTransforming {
 
                     let client = makeClient(configuration)
                     let started = Date()
-                    var answer = ""
-                    var usage: TokenUsage?
 
-                    for try await event in client.stream(prompt: prompt.render(selection: text)) {
+                    let rendered = prompt.render(selection: text)
+                    round = (configuration, rendered)
+
+                    for try await event in client.stream(prompt: rendered) {
                         switch event {
                         case .delta(let piece):
                             answer += piece
@@ -68,6 +103,7 @@ public struct LLMTextTransformer: TextTransforming {
                     // off, which is exactly the kind of entry that makes a log
                     // useless later.
                     guard !Task.isCancelled else {
+                        bill()
                         Log.write(String(
                             format: "round cut short: %d characters of answer in %.0f ms",
                             answer.count,
@@ -91,10 +127,16 @@ public struct LLMTextTransformer: TextTransforming {
                         usage.map { "\($0.promptTokens)+\($0.completionTokens)" } ?? "not reported"
                     ))
 
+                    bill()
                     guard !cleaned.isEmpty else { throw LLMError.emptyAnswer }
                     continuation.yield(.finished(cleaned))
                     continuation.finish()
                 } catch {
+                    // A stream that broke after a few pieces had arrived was
+                    // paid for as far as it got. One that never left costs
+                    // nothing and leaves no row behind, which is what the
+                    // guard inside bill() is for.
+                    bill()
                     continuation.finish(throwing: error)
                 }
             }

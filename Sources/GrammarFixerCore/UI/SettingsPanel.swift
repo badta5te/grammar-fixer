@@ -11,11 +11,13 @@ import SwiftUI
 public final class SettingsPanel: NSObject, NSWindowDelegate {
     private let settings: Settings
     private let store: ProviderStore
+    private let usage: UsageStore
     private var panel: FloatingPanel?
 
-    public init(settings: Settings, store: ProviderStore) {
+    public init(settings: Settings, store: ProviderStore, usage: UsageStore) {
         self.settings = settings
         self.store = store
+        self.usage = usage
         super.init()
     }
 
@@ -30,7 +32,7 @@ public final class SettingsPanel: NSObject, NSWindowDelegate {
             return
         }
 
-        let state = SettingsFormState(settings: settings, store: store)
+        let state = SettingsFormState(settings: settings, store: store, usage: usage)
         let panel = FloatingPanel(styleMask: [.titled, .closable]) {
             SettingsView(state: state)
         }
@@ -78,6 +80,8 @@ public final class SettingsFormState {
     var restoreClipboard: Bool
     var pasteByTyping: Bool
     var promptTemplate: String
+    var monthlyLimit: String
+    var priceRows: [PriceRow] = []
 
     var keyState: KeyState = .untested
     var modelList: ModelListState = .notLoaded
@@ -90,10 +94,12 @@ public final class SettingsFormState {
 
     private let settings: Settings
     private let store: ProviderStore
+    private let usage: UsageStore
 
-    init(settings: Settings, store: ProviderStore) {
+    init(settings: Settings, store: ProviderStore, usage: UsageStore) {
         self.settings = settings
         self.store = store
+        self.usage = usage
         presetId = store.preset.id
         model = store.model
         address = settings.address
@@ -105,6 +111,114 @@ public final class SettingsFormState {
         promptTemplate = settings.promptTemplate
         overrides = store.overrides
         apiKey = (try? store.key(for: store.preset)) ?? ""
+        monthlyLimit = String(format: "%.2f", settings.monthlyLimit)
+        reloadPrices()
+    }
+
+    // MARK: - Spending
+
+    /// One row of the price table as it is being edited. The two amounts are
+    /// text rather than numbers because a half-typed figure is not a number
+    /// yet, and a field that fought back mid-keystroke would be unusable.
+    struct PriceRow: Identifiable, Equatable {
+        var id: String { PriceTable.key(provider: provider, model: model) }
+        var provider: String
+        var model: String
+        var input: String
+        var output: String
+        /// There is an entry of this person's own behind this row, so it can
+        /// be put back to what the app shipped with.
+        var isEdited: Bool
+        /// The model the next round will use.
+        var isCurrent: Bool
+    }
+
+    var summary: SpendSummary { usage.summary(prices: settings.prices) }
+
+    var budget: Budget { settings.budget }
+
+    /// The last few rounds, newest first. Enough to see that the counter is
+    /// working and which rounds it had to guess at, and not so many that the
+    /// window becomes a ledger.
+    var recentRounds: [UsageRecord] {
+        usage.records.suffix(6).reversed()
+    }
+
+    func cost(of record: UsageRecord) -> Double? {
+        settings.prices.cost(of: record)
+    }
+
+    func limitChanged() {
+        // An emptied or half-typed field reads as no limit rather than as a
+        // refusal: the limit is soft, and a window that fought back while a
+        // figure was being typed would be worse than a moment without one.
+        settings.monthlyLimit = Money.parse(monthlyLimit) ?? 0
+    }
+
+    /// The rows worth showing: the model the next round will use, and every
+    /// model this month has already been billed for. The shipped table holds
+    /// more, but a window listing prices for models somebody has never touched
+    /// is a wall of figures to scroll past.
+    func reloadPrices() {
+        var keys: [(provider: String, model: String)] = []
+        if !model.isEmpty { keys.append((preset.id, model)) }
+        for record in usage.records.reversed() where !record.model.isEmpty {
+            keys.append((record.provider, record.model))
+        }
+
+        var seen = Set<String>()
+        let prices = settings.prices
+        let overrides = settings.priceOverrides
+        priceRows = keys.compactMap { key in
+            let id = PriceTable.key(provider: key.provider, model: key.model)
+            guard seen.insert(id).inserted else { return nil }
+            let price = prices.price(provider: key.provider, model: key.model)
+            return PriceRow(
+                provider: key.provider,
+                model: key.model,
+                input: price.map { trim($0.input) } ?? "",
+                output: price.map { trim($0.output) } ?? "",
+                isEdited: overrides[id] != nil,
+                isCurrent: key.provider == preset.id && key.model == model
+            )
+        }
+    }
+
+    func priceChanged(_ row: PriceRow) {
+        guard let price = Price.parse(input: row.input, output: row.output) else {
+            // Half a figure typed is not a price yet. Storing nothing leaves
+            // the round unpriced, which is what it is until both fields make
+            // sense.
+            settings.removePrice(provider: row.provider, model: row.model)
+            markEdited(row.id, false)
+            return
+        }
+        settings.setPrice(price, provider: row.provider, model: row.model)
+        markEdited(row.id, true)
+    }
+
+    /// Putting a row back is the same act as forgetting it was ever edited,
+    /// so the shipped price comes back with it.
+    func forgetPrice(_ row: PriceRow) {
+        settings.removePrice(provider: row.provider, model: row.model)
+        reloadPrices()
+    }
+
+    private func markEdited(_ id: String, _ isEdited: Bool) {
+        guard let index = priceRows.firstIndex(where: { $0.id == id }) else { return }
+        priceRows[index].isEdited = isEdited
+    }
+
+    /// Prices run from eight cents to fifteen dollars a million tokens, so a
+    /// fixed number of decimals would either round the cheap ones to nothing
+    /// or hang zeros off the dear ones.
+    private func trim(_ amount: Double) -> String {
+        let text = String(format: "%.4f", amount)
+        guard text.contains(".") else { return text }
+        var trimmed = text
+        while trimmed.hasSuffix("0") { trimmed.removeLast() }
+        if trimmed.hasSuffix(".") { trimmed.removeLast() }
+        return trimmed
     }
 
     var preset: ProviderPreset { ProviderPreset.named(presetId) ?? .custom }
@@ -134,12 +248,16 @@ public final class SettingsFormState {
         modelList = .notLoaded
         keyState = .untested
         keyFailure = nil
+        reloadPrices()
         Log.write("provider: \(preset.id)")
     }
 
     func modelChanged() {
         store.model = model
         keyState = .untested
+        // The price table shows the model the next round will use, so it
+        // follows the field.
+        reloadPrices()
     }
 
     func addressChanged() {

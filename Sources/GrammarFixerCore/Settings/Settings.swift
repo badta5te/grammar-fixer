@@ -18,6 +18,8 @@ public final class Settings {
     public static let requestUsageKey = "RequestUsage"
     public static let reasoningKey = "Reasoning"
     public static let promptKey = "PromptTemplate"
+    public static let limitKey = "MonthlyLimit"
+    public static let pricesKey = "Prices"
 
     private let defaults: UserDefaults
 
@@ -33,6 +35,7 @@ public final class Settings {
             Self.providerKey: ProviderPreset.deepseek.id,
             Self.requestUsageKey: true,
             Self.reasoningKey: ProviderConfiguration.Reasoning.off.rawValue,
+            Self.limitKey: Budget.default,
         ])
 
         // Before there was a window, one model was kept for the app as a whole.
@@ -135,5 +138,62 @@ public final class Settings {
 
     public var promptIsTheDefault: Bool {
         defaults.string(forKey: Self.promptKey) == nil
+    }
+
+    /// Dollars a month before the app starts saying so. Soft: the request goes
+    /// out whatever the counter reads. Zero means no limit at all.
+    public var monthlyLimit: Double {
+        get { defaults.double(forKey: Self.limitKey) }
+        set { defaults.set(max(0, newValue), forKey: Self.limitKey) }
+    }
+
+    public var budget: Budget { Budget(limit: monthlyLimit) }
+
+    /// The prices as this person has them: what was shipped, with their own
+    /// rows laid over it.
+    ///
+    /// Only their rows are stored, the same way the prompt is. A price
+    /// corrected in a later version then reaches everybody who never edited
+    /// that row, and a row put back is simply a row forgotten.
+    public var prices: PriceTable {
+        PriceTable.builtIn.merging(priceOverrides)
+    }
+
+    public var priceOverrides: [String: Price] {
+        get {
+            guard let data = defaults.data(forKey: Self.pricesKey),
+                  let table = try? JSONDecoder().decode([String: Price].self, from: data)
+            else { return [:] }
+            return table
+        }
+        set {
+            guard !newValue.isEmpty else {
+                // Nothing of their own left: the shipped table stands on its
+                // own again, and an empty dictionary would only be a key
+                // pretending to hold something.
+                defaults.removeObject(forKey: Self.pricesKey)
+                return
+            }
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                // Two doubles per row should never fail to encode. If they
+                // ever do, the old table stays where it is rather than being
+                // wiped, and the log says a price was typed that never landed.
+                Log.write("a price was edited but could not be stored")
+                return
+            }
+            defaults.set(data, forKey: Self.pricesKey)
+        }
+    }
+
+    public func setPrice(_ price: Price, provider: String, model: String) {
+        var overrides = priceOverrides
+        overrides[PriceTable.key(provider: provider, model: model)] = price
+        priceOverrides = overrides
+    }
+
+    public func removePrice(provider: String, model: String) {
+        var overrides = priceOverrides
+        overrides.removeValue(forKey: PriceTable.key(provider: provider, model: model))
+        priceOverrides = overrides
     }
 }

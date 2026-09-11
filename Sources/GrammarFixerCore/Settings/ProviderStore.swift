@@ -74,6 +74,7 @@ public final class ProviderStore {
 
         return ProviderConfiguration(
             model: model,
+            providerId: preset.id,
             baseURL: url,
             apiKey: key,
             requestsUsage: settings.requestsUsage,

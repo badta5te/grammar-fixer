@@ -8,6 +8,11 @@ import Foundation
 /// spared the question.
 public struct ProviderConfiguration: Equatable, Sendable {
     public let model: String
+
+    /// Who is being paid. Carried alongside the model because the same model
+    /// name reaches different bills through a reseller, and the spending
+    /// counter prices a round by both.
+    public let providerId: String
     public let baseURL: URL
     public let apiKey: String
 
@@ -35,6 +40,7 @@ public struct ProviderConfiguration: Equatable, Sendable {
 
     public init(
         model: String,
+        providerId: String = ProviderPreset.custom.id,
         baseURL: URL,
         apiKey: String,
         requestsUsage: Bool,
@@ -42,6 +48,7 @@ public struct ProviderConfiguration: Equatable, Sendable {
         kind: ProviderPreset.Kind = .openAICompatible
     ) {
         self.model = model
+        self.providerId = providerId
         self.baseURL = baseURL
         self.apiKey = apiKey
         self.requestsUsage = requestsUsage

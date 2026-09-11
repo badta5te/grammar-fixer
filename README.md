@@ -9,7 +9,8 @@ The whole round trip works today: the shortcut takes your selection, sends it
 to a model and shows the corrected text in a panel. From there `⏎` pastes it
 back, `⌘⏎` puts it in the clipboard and `Esc` closes without doing anything.
 The provider, model, key, prompt and theme are changed in a settings window and
-take effect from the very next press of the shortcut.
+take effect from the very next press of the shortcut. Every round is counted,
+and the menu says what the month has cost so far.
 
 The prototype findings the round trip rests on are in
 [docs/round-trip-findings.md](docs/round-trip-findings.md).
@@ -54,8 +55,13 @@ or a pair of quotes can only be recognised in a finished answer.
 Closing the panel also stops the request. An answer nobody will read is still
 paid for.
 
-The footer names the model and counts characters and words. Spending from
-ticket 07 and the number of changes from ticket 08 will go there too.
+The footer names the model and counts characters and words. The number of
+changes will go there too.
+
+Above the answer, and only when the month is worth mentioning, a line says
+where the spending stands. It appears at eighty per cent of the monthly limit
+and again past it, and it never stands in the way: the correction below it is
+finished and `⏎` still pastes it.
 
 ## Provider and key
 
@@ -186,6 +192,7 @@ defaults write com.badta5te.GrammarFixer WriteLog -bool false
 defaults write com.badta5te.GrammarFixer Theme dark
 defaults write com.badta5te.GrammarFixer Provider anthropic
 defaults write com.badta5te.GrammarFixer Model.anthropic claude-haiku-4-5-20251001
+defaults write com.badta5te.GrammarFixer MonthlyLimit -float 5
 ```
 
 - `RestoreClipboardAfterPaste` — whether to put the clipboard back after
@@ -197,9 +204,52 @@ defaults write com.badta5te.GrammarFixer Model.anthropic claude-haiku-4-5-202510
 - `WriteLog` — the round's log in `~/Library/Logs/GrammarFixer.log`. What was
   selected never reaches it, only how long it was.
 - `Theme` — `system`, `light` or `dark`.
+- `MonthlyLimit` — dollars a month before the app starts saying so. Zero means
+  no limit. `Prices` holds the rows of the price table that were edited by
+  hand, and is easier to change in the window than as encoded data.
 - `Provider`, `Model.<provider>`, `BaseURL`, `RequestUsage`, `Reasoning` — the
   same things as in the window. There is no key among them: it is in the
   Keychain.
+
+## Spending
+
+Every round is recorded: which provider, which model, how many tokens in and
+out. The menu carries the month's total and the limit beside it, and the
+settings window holds the limit, the prices and the last few rounds.
+
+The limit is soft, three dollars a month to start with. The correction is
+always sent. Past eighty per cent of the limit the result panel says where the
+month stands, and past the limit itself the menu bar icon turns red. Zero means
+no limit at all.
+
+What is stored is tokens, never dollars. Money is worked out on the way out,
+from the price table as it stands at that moment, so a price corrected in the
+window counts the rounds that already went through at that rate. A model
+nothing can price is left out of the total and said to be left out, rather than
+counted as free: a round nobody has a price for was not free, and counting it
+as free is the one answer that is certainly wrong.
+
+The prices shipped with the app are a starting point and go stale — providers
+change them without warning, which is why the table is editable. Only the rows
+somebody edits are stored, so a corrected price in a later version still
+reaches everybody who never touched that row.
+
+The month is the calendar one in the local time zone and turns at midnight on
+the first. Rounds older than thirteen months are forgotten: the app lives in
+the background for months and nobody ever cleans the file up.
+
+Token counts come from the provider. All four presets report them. When one
+does not — the request for usage is switched off, or a server refused it and
+the round was sent again without it — the tokens are guessed from the text,
+that round is marked as an estimate, and the month's total is shown as a floor
+rather than a sum. Cyrillic is guessed at a smaller number of characters per
+token than Latin, because the common tokenizers split it far more finely.
+
+The history is a file of its own:
+
+```
+~/Library/Application Support/GrammarFixer/usage.json
+```
 
 ## Requirements
 
@@ -287,6 +337,7 @@ Sources/GrammarFixerCore/   all of the app's code
   Hotkey/                   the global shortcut, through Carbon
   TextIO/                   capture, paste, the clipboard, permissions
   LLM/                      the prompt, two provider adapters, parsing answers
+  Billing/                  what a round cost, the month, the limit
   Settings/                 settings over UserDefaults, keys in the Keychain
   UI/                       the windows of an agent app
   Support/                  the log

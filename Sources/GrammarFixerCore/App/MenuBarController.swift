@@ -12,23 +12,27 @@ import UniformTypeIdentifiers
 final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let settings: Settings
+    private let usage: UsageStore
     private let notices: any NoticePresenting
     private let onFixSelection: () -> Void
     private let onShowOnboarding: () -> Void
     private let onShowSettings: () -> Void
 
+    private var spendItem: NSMenuItem?
     private var restoreClipboardItem: NSMenuItem?
     private var pasteByTypingItem: NSMenuItem?
     private var writeLogItem: NSMenuItem?
 
     init(
         settings: Settings,
+        usage: UsageStore,
         notices: any NoticePresenting,
         onFixSelection: @escaping () -> Void,
         onShowOnboarding: @escaping () -> Void,
         onShowSettings: @escaping () -> Void
     ) {
         self.settings = settings
+        self.usage = usage
         self.notices = notices
         self.onFixSelection = onFixSelection
         self.onShowOnboarding = onShowOnboarding
@@ -45,6 +49,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         statusItem.menu = makeMenu()
+        refresh()
+    }
+
+    /// The icon says when the month has gone past the limit.
+    ///
+    /// Called from outside whenever a round is recorded, because the icon is
+    /// on screen all the time while the menu below it is redrawn only when
+    /// opened. Red rather than a different glyph: the shape is how somebody
+    /// finds this app among twenty other menu bar icons, and changing it would
+    /// hide the app to warn about the bill.
+    func refresh() {
+        let summary = usage.summary(prices: settings.prices)
+        let isOver = settings.budget.level(spent: summary.total) == .over
+        statusItem.button?.contentTintColor = isOver ? .systemRed : nil
+        statusItem.button?.toolTip = summary.describe(limit: settings.monthlyLimit)
     }
 
     private func makeMenu() -> NSMenu {
@@ -54,6 +73,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let title = NSMenuItem(title: "\(AppInfo.name) \(AppInfo.version)", action: nil, keyEquivalent: "")
         title.isEnabled = false
         menu.addItem(title)
+
+        // The second reason this app exists after the choice of model: what
+        // the month has cost so far, visible without opening anything.
+        let spend = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        spend.isEnabled = false
+        menu.addItem(spend)
+        spendItem = spend
 
         menu.addItem(.separator())
 
@@ -104,6 +130,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// Check marks are set when the menu opens rather than when it is built:
     /// the same settings change from a terminal, and the menu must not lie.
     func menuNeedsUpdate(_ menu: NSMenu) {
+        let summary = usage.summary(prices: settings.prices)
+        spendItem?.title = summary.describe(limit: settings.monthlyLimit)
+        refresh()
+
         restoreClipboardItem?.state = settings.restoreClipboardAfterPaste ? .on : .off
         pasteByTypingItem?.state = settings.pasteMethod == .typing ? .on : .off
         writeLogItem?.state = settings.writesLog ? .on : .off

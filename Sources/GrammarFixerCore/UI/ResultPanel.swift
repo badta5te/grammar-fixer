@@ -102,6 +102,8 @@ private struct ResultView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            budgetBanner
+
             // The size is fixed on purpose. The window takes its size from the
             // content, and a panel that grew with every piece of the answer
             // would jump about the screen while being read.
@@ -119,6 +121,27 @@ private struct ResultView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(.separator, lineWidth: 1)
         )
+    }
+
+    /// The month, when the month is worth mentioning. It sits above the answer
+    /// rather than in the footer: the footer is read after the decision and
+    /// this is meant to be read before it. It never stands in the way — the
+    /// correction below it is finished and ⏎ still pastes it.
+    @ViewBuilder
+    private var budgetBanner: some View {
+        if let notice = session.budgetNotice {
+            HStack(spacing: 8) {
+                Image(systemName: notice.level.systemImage)
+                Text(notice.text)
+                Spacer()
+            }
+            .font(.caption)
+            .foregroundStyle(notice.level == .over ? Color.orange : .secondary)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .frame(width: bodyWidth + 40, alignment: .leading)
+            Divider()
+        }
     }
 
     @ViewBuilder

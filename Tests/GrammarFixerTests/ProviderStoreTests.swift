@@ -45,6 +45,16 @@ final class ProviderStoreTests: XCTestCase {
         XCTAssertEqual(configuration.kind, .openAICompatible)
     }
 
+    /// Who is being paid travels with the round, because the spending counter
+    /// prices a model by its provider: the same name through a reseller is a
+    /// different bill. A round filed under the wrong provider is priced by
+    /// somebody else's rates, quietly and for ever.
+    func testTheRoundCarriesTheNameOfWhoeverIsBeingPaid() throws {
+        configureDeepSeek()
+
+        XCTAssertEqual(try makeStore().configuration().providerId, ProviderPreset.deepseek.id)
+    }
+
     /// The reason the second adapter exists at all: the choice of provider has
     /// to reach the code that speaks the protocol.
     func testChoosingAnthropicChoosesTheOtherAdapter() throws {

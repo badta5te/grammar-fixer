@@ -46,4 +46,72 @@ final class SettingsTests: XCTestCase {
 
         XCTAssertEqual(Settings(defaults: defaults).pasteMethod, .clipboard)
     }
+
+    // MARK: - Spending
+
+    /// Three dollars a month, because the subscription this app replaces cost
+    /// eight and the point is to see the difference.
+    func testTheLimitStartsAtThreeDollarsAMonth() {
+        XCTAssertEqual(Settings(defaults: defaults).monthlyLimit, 3, accuracy: 1e-9)
+    }
+
+    func testTheLimitSurvivesARestart() {
+        Settings(defaults: defaults).monthlyLimit = 10
+
+        XCTAssertEqual(Settings(defaults: defaults).monthlyLimit, 10, accuracy: 1e-9)
+    }
+
+    /// Nobody has to have a limit, and a limit of nothing would make every
+    /// round a warning.
+    func testTheLimitCanBeTurnedOffAltogether() {
+        let settings = Settings(defaults: defaults)
+        settings.monthlyLimit = 0
+
+        XCTAssertFalse(Budget(limit: Settings(defaults: defaults).monthlyLimit).isSet)
+    }
+
+    func testThePricesShippedWithTheAppAreThereFromTheStart() {
+        XCTAssertNotNil(Settings(defaults: defaults).prices.price(provider: "deepseek", model: "deepseek-chat"))
+    }
+
+    /// Only what somebody typed is stored, the way the prompt is, so a price
+    /// corrected in a later version reaches everybody who never edited that
+    /// row.
+    func testAnEditedPriceIsKeptAndWinsOverTheShippedOne() {
+        let settings = Settings(defaults: defaults)
+        settings.setPrice(Price(input: 9, output: 9), provider: "deepseek", model: "deepseek-chat")
+
+        let reloaded = Settings(defaults: defaults)
+
+        XCTAssertEqual(reloaded.prices.price(provider: "deepseek", model: "deepseek-chat"),
+                       Price(input: 9, output: 9))
+        XCTAssertEqual(reloaded.priceOverrides.count, 1)
+    }
+
+    func testAPriceCanBeTypedInForAModelTheAppNeverHeardOf() {
+        let settings = Settings(defaults: defaults)
+        settings.setPrice(Price(input: 1, output: 2), provider: "deepseek", model: "deepseek-flash")
+
+        XCTAssertEqual(Settings(defaults: defaults).prices.price(provider: "deepseek", model: "deepseek-flash"),
+                       Price(input: 1, output: 2))
+    }
+
+    /// Putting a row back is the same act as forgetting it was ever edited.
+    func testForgettingAnEditedPriceBringsTheShippedOneBack() {
+        let settings = Settings(defaults: defaults)
+        settings.setPrice(Price(input: 9, output: 9), provider: "deepseek", model: "deepseek-chat")
+        settings.removePrice(provider: "deepseek", model: "deepseek-chat")
+
+        XCTAssertEqual(Settings(defaults: defaults).prices.price(provider: "deepseek", model: "deepseek-chat"),
+                       PriceTable.builtIn.price(provider: "deepseek", model: "deepseek-chat"))
+    }
+
+    /// A price typed by hand can be corrupted by hand as well, and the round
+    /// trip must not depend on it being readable.
+    func testADamagedPriceTableFallsBackToTheShippedOne() {
+        defaults.set("not a price table", forKey: Settings.pricesKey)
+
+        XCTAssertEqual(Settings(defaults: defaults).priceOverrides, [:])
+        XCTAssertNotNil(Settings(defaults: defaults).prices.price(provider: "openai", model: "gpt-4o"))
+    }
 }

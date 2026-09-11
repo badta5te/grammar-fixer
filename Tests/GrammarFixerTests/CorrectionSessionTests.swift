@@ -183,3 +183,47 @@ extension CorrectionSessionTests {
         XCTAssertEqual(session.state, .waiting)
     }
 }
+
+/// Where the month stands, on the panel. It is asked for rather than handed
+/// over once, so the round that passes the limit is the round that says so
+/// instead of the one after it.
+@MainActor
+final class CorrectionSessionBudgetTests: XCTestCase {
+    func testThereIsNothingToSayWhileTheMonthIsQuiet() {
+        let session = CorrectionSession(source: "текст", produce: { _ in
+            AsyncThrowingStream { $0.finish() }
+        })
+
+        XCTAssertNil(session.budgetNotice)
+    }
+
+    func testTheNoticeIsReadAfreshEveryTimeThePanelDraws() {
+        let month = Month()
+        let session = CorrectionSession(
+            source: "текст",
+            produce: { _ in AsyncThrowingStream { $0.finish() } },
+            budget: {
+                Budget(limit: 3).notice(for: SpendSummary(
+                    monthStart: Date(),
+                    total: month.spent,
+                    rounds: 1,
+                    estimatedRounds: 0,
+                    unpricedRounds: 0
+                ))
+            }
+        )
+
+        XCTAssertNil(session.budgetNotice)
+
+        month.spent = 3.20
+
+        XCTAssertEqual(session.budgetNotice?.level, .over)
+    }
+}
+
+/// A month that can change while the panel is open, which a captured local
+/// cannot be.
+@MainActor
+private final class Month {
+    var spent = 1.0
+}

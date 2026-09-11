@@ -11,6 +11,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             providerSection
+            spendingSection
             appearanceSection
             pasteSection
             promptSection
@@ -52,6 +53,12 @@ struct SettingsView: View {
 
             Toggle("Ask the provider for token usage", isOn: $state.requestsUsage)
                 .onChange(of: state.requestsUsage) { state.requestsUsageChanged() }
+            Text("With this off, spending is guessed from the text instead of counted, and every "
+                + "round is marked as an estimate. A few servers refuse the request outright; the "
+                + "round is then sent again without it, and comes back without token counts.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Toggle(
                 "Let the model think before answering",
                 isOn: Binding(
@@ -192,6 +199,182 @@ struct SettingsView: View {
                 .font(.footnote)
                 .foregroundStyle(.orange)
         }
+    }
+
+
+    // MARK: - Spending
+
+    /// The second reason this app exists. The month's total, the limit that
+    /// decides when it starts saying something, and the prices behind both.
+    private var spendingSection: some View {
+        Section("Spending") {
+            HStack {
+                Text("Monthly limit")
+                Spacer()
+                Text("$")
+                    .foregroundStyle(.secondary)
+                TextField("Monthly limit", text: $state.monthlyLimit, prompt: Text("3.00"))
+                    .labelsHidden()
+                    // Bordered on purpose: a plain field inside a grouped form
+                    // reads as a label, and a price nobody realises they can
+                    // edit is a price that stays wrong.
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 70)
+                    .multilineTextAlignment(.trailing)
+                    .onChange(of: state.monthlyLimit) { state.limitChanged() }
+            }
+            Text("Soft: the correction is always sent. Past 80 per cent of the limit the panel says "
+                + "where the month stands, and past the limit itself the menu bar icon turns red. "
+                + "Zero means no limit at all.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            monthLine
+            pricesEditor
+            recentRounds
+        }
+    }
+
+    private var monthLine: some View {
+        let summary = state.summary
+        let level = state.budget.level(spent: summary.total)
+        return VStack(alignment: .leading, spacing: 4) {
+            Label(summary.describe(limit: state.budget.limit), systemImage: level.systemImage)
+                .foregroundStyle(level == .over ? Color.orange : .primary)
+
+            if summary.isApproximate {
+                Text(approximateNote(summary))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Why the figure above is a floor rather than a sum. Without this the
+    /// total looks exact, and an exact-looking figure that is not exact is the
+    /// thing this counter was built to avoid.
+    ///
+    /// The two facts are stated apart rather than added up. A round can be
+    /// both unpriced and guessed, and one number covering both would report
+    /// more shaky rounds than the month actually holds — the same kind of
+    /// figure that looks solid without being solid.
+    private func approximateNote(_ summary: SpendSummary) -> String {
+        var facts: [String] = []
+        if summary.unpricedRounds > 0 {
+            facts.append("\(summary.unpricedRounds) of this month's \(summary.rounds) rounds have no "
+                + "price for the model and are left out of the total.")
+        }
+        if summary.estimatedRounds > 0 {
+            facts.append("\(summary.estimatedRounds) were counted from the text, because the "
+                + "provider reported no tokens.")
+        }
+        return facts.joined(separator: " ")
+    }
+
+    /// Prices per million tokens, for the model in use and whatever this month
+    /// has already been billed for. A model with an empty row is one nothing
+    /// here can price; typing the two figures in counts it, and counts the
+    /// rounds it already went through.
+    @ViewBuilder
+    private var pricesEditor: some View {
+        if !state.priceRows.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Per million tokens, in and out")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                ForEach($state.priceRows) { $row in
+                    HStack(spacing: 8) {
+                        Text(row.model)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help("\(row.provider) · \(row.model)")
+                        if row.isCurrent {
+                            Text("in use")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        TextField("in", text: $row.input, prompt: Text("—"))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 62)
+                            .multilineTextAlignment(.trailing)
+                            .onChange(of: row.input) { state.priceChanged(row) }
+                        TextField("out", text: $row.output, prompt: Text("—"))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 62)
+                            .multilineTextAlignment(.trailing)
+                            .onChange(of: row.output) { state.priceChanged(row) }
+                        Button {
+                            state.forgetPrice(row)
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward")
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(!row.isEdited)
+                        .help("Back to the price this app shipped with")
+                    }
+                    .labelsHidden()
+                }
+
+                Text("Shipped prices are a starting point and go stale: providers change them "
+                    + "without warning. Check them against the provider's own page. A price typed "
+                    + "here counts the rounds that already went through at that rate, this month "
+                    + "included.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// The last few rounds. Enough to see that the counter works and which
+    /// rounds it had to guess at.
+    @ViewBuilder
+    private var recentRounds: some View {
+        if !state.recentRounds.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Recent rounds")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                ForEach(state.recentRounds) { record in
+                    HStack(spacing: 8) {
+                        Text(record.date, format: .dateTime.day().month().hour().minute())
+                            .foregroundStyle(.secondary)
+                        Text(record.model)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 8)
+                        Text("\(record.promptTokens) + \(record.completionTokens)")
+                            .foregroundStyle(.secondary)
+                        // An estimate is marked where it is shown, not only in
+                        // the total: a row that looks exact makes the total
+                        // look exact too.
+                        Text(amount(for: record))
+                            .foregroundStyle(shade(for: record))
+                            .frame(width: 64, alignment: .trailing)
+                    }
+                    .font(.caption)
+                }
+            }
+        }
+    }
+
+    private func amount(for record: UsageRecord) -> String {
+        guard let cost = state.cost(of: record) else { return "no price" }
+        return record.isEstimated ? "≈\(Money.text(cost))" : Money.text(cost)
+    }
+
+    /// Three kinds of row, three ways of reading. A figure nothing can price
+    /// is the one that needs doing something about, so it is the one in
+    /// orange; a guessed figure is dimmed beside an exact one, because a
+    /// single glyph is easy to slide past in a column of amounts.
+    private func shade(for record: UsageRecord) -> Color {
+        if state.cost(of: record) == nil { return .orange }
+        return record.isEstimated ? .secondary : .primary
     }
 
     // MARK: - The rest

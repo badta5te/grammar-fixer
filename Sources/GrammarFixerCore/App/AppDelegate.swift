@@ -30,6 +30,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // is only read: it holds somebody's key and is not ours to remove.
         store.importLegacyFile()
 
+        // The history is read once, at launch, and written on every round.
+        let usage = UsageStore()
+
         let clipboard = SystemClipboard()
         let keyboard = SystemKeyboard()
         let notices = NoticePanel()
@@ -41,25 +44,35 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             paster: TextPaster(clipboard: clipboard, keyboard: keyboard, focus: FocusRestorer()),
             transform: LLMTextTransformer(
                 loadConfiguration: { try store.configuration() },
-                loadPrompt: { store.prompt() }
+                loadPrompt: { store.prompt() },
+                record: { usage.add($0) }
             ),
             notices: notices,
             results: results,
+            budget: { [settings, usage] in
+                settings.budget.notice(for: usage.summary(prices: settings.prices))
+            },
             onAccessibilityDenied: { [onboarding] in onboarding.show() }
         )
         roundTrip.registerHotKey()
         self.roundTrip = roundTrip
 
-        let settingsPanel = SettingsPanel(settings: settings, store: store)
+        let settingsPanel = SettingsPanel(settings: settings, store: store, usage: usage)
         self.settingsPanel = settingsPanel
 
-        menuBar = MenuBarController(
+        let menuBar = MenuBarController(
             settings: settings,
+            usage: usage,
             notices: notices,
             onFixSelection: { roundTrip.run() },
             onShowOnboarding: { [onboarding] in onboarding.show() },
             onShowSettings: { settingsPanel.show() }
         )
+        self.menuBar = menuBar
+
+        // The icon stands on screen while the menu under it is redrawn only
+        // when opened, so the round that passes the limit has to say so itself.
+        usage.onChange = { [weak menuBar] in menuBar?.refresh() }
 
         // The round trip cannot work without access, and saying nothing about
         // that on a first launch leaves a person with a shortcut that does

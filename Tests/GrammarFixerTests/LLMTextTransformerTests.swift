@@ -162,3 +162,114 @@ final class LLMTextTransformerStreamTests: XCTestCase {
         XCTAssertEqual(received, [.model("test-model")])
     }
 }
+
+/// What the round costs is recorded where the round happens, because this is
+/// the one place that knows both what was asked and what came back.
+@MainActor
+final class LLMTextTransformerBillingTests: XCTestCase {
+    private var client: FakeLLMClient!
+    private var recorded: [UsageRecord] = []
+
+    override func setUp() async throws {
+        client = FakeLLMClient()
+        recorded = []
+    }
+
+    private func makeTransformer(
+        configuration: @escaping () throws -> ProviderConfiguration = { .forTesting }
+    ) -> LLMTextTransformer {
+        LLMTextTransformer(
+            loadConfiguration: configuration,
+            makeClient: { [client] _ in client! },
+            record: { [weak self] record in self?.recorded.append(record) }
+        )
+    }
+
+    func testWhatTheProviderReportedIsWhatGoesOnTheRecord() async throws {
+        client.events = [
+            .delta("Привет, как дела?"),
+            .usage(TokenUsage(promptTokens: 120, completionTokens: 30)),
+            .done,
+        ]
+
+        _ = try await makeTransformer().transform("привет как дела")
+
+        let record = try XCTUnwrap(recorded.first)
+        XCTAssertEqual(record.promptTokens, 120)
+        XCTAssertEqual(record.completionTokens, 30)
+        XCTAssertFalse(record.isEstimated)
+        XCTAssertEqual(record.model, "test-model")
+        XCTAssertEqual(record.provider, ProviderConfiguration.forTesting.providerId)
+    }
+
+    /// A provider that reports nothing still charged for the round, and a
+    /// round counted as free is the one figure that is certainly wrong.
+    func testAProviderThatReportsNothingIsGuessedFromTheText() async throws {
+        client.events = [.delta("Привет, как дела?"), .done]
+
+        _ = try await makeTransformer().transform("привет как дела")
+
+        let record = try XCTUnwrap(recorded.first)
+        XCTAssertTrue(record.isEstimated)
+        XCTAssertGreaterThan(record.completionTokens, 0)
+        // The whole prompt is paid for, not just the selection inside it.
+        XCTAssertGreaterThan(record.promptTokens, TokenEstimate.tokens(in: "привет как дела"))
+    }
+
+    /// Nothing was sent, so nothing was charged.
+    func testARoundThatNeverLeftIsNotRecorded() async {
+        let transformer = makeTransformer(configuration: { throw LLMError.notConfigured })
+
+        await XCTAssertThrowsErrorAsync(try await transformer.transform("текст")) { _ in }
+
+        XCTAssertTrue(recorded.isEmpty)
+    }
+
+    /// A refusal before a single token costs nothing and should not leave a
+    /// row behind pretending otherwise.
+    func testARefusalWithNoAnswerIsNotRecorded() async {
+        client.failure = LLMError.unauthorized(nil)
+
+        await XCTAssertThrowsErrorAsync(try await makeTransformer().transform("текст")) { _ in }
+
+        XCTAssertTrue(recorded.isEmpty)
+    }
+
+    /// A stream that broke halfway had already generated text, and the
+    /// provider bills for text it generated.
+    func testAnAnswerThatBrokeOffHalfwayIsStillPaidFor() async {
+        client.events = [.delta("Привет, ")]
+        client.failure = LLMError.noConnection
+
+        await XCTAssertThrowsErrorAsync(try await makeTransformer().transform("привет")) { _ in }
+
+        XCTAssertEqual(recorded.count, 1)
+        XCTAssertEqual(recorded.first?.isEstimated, true)
+    }
+
+    /// An answer that sanitized away to nothing was paid for, and paid for
+    /// once. It is billed before it is refused, and the refusal must not put
+    /// the same round through a second time.
+    func testAnAnswerThatSanitizedToNothingIsPaidForExactlyOnce() async {
+        client.events = [.delta("   "), .done]
+
+        await XCTAssertThrowsErrorAsync(try await makeTransformer().transform("текст")) { error in
+            XCTAssertEqual(error as? LLMError, .emptyAnswer)
+        }
+
+        XCTAssertEqual(recorded.count, 1)
+    }
+
+    /// Retrying after a failure is a second round and costs a second time.
+    /// Rolling the two into one would understate exactly the month somebody is
+    /// looking at the counter for.
+    func testARetryIsRecordedAsARoundOfItsOwn() async throws {
+        client.events = [.delta("Привет"), .done]
+        let transformer = makeTransformer()
+
+        _ = try await transformer.transform("привет")
+        _ = try await transformer.transform("привет")
+
+        XCTAssertEqual(recorded.count, 2)
+    }
+}

@@ -23,15 +23,26 @@ public final class CorrectionSession {
 
     private let source: String
     private let produce: @MainActor (String) -> AsyncThrowingStream<CorrectionEvent, any Error>
+    private let budget: @MainActor () -> BudgetNotice?
     private var task: Task<Void, Never>?
 
     public init(
         source: String,
-        produce: @escaping @MainActor (String) -> AsyncThrowingStream<CorrectionEvent, any Error>
+        produce: @escaping @MainActor (String) -> AsyncThrowingStream<CorrectionEvent, any Error>,
+        budget: @escaping @MainActor () -> BudgetNotice? = { nil }
     ) {
         self.source = source
         self.produce = produce
+        self.budget = budget
     }
+
+    /// Where the month stands, or nothing at all while it is quiet.
+    ///
+    /// Asked for rather than stored, so that the round which passes the limit
+    /// says so on the panel it is being watched on. The panel redraws with
+    /// every piece of the answer, and the round is recorded before the last
+    /// one lands.
+    public var budgetNotice: BudgetNotice? { budget() }
 
     /// The text that may be pasted, or nil while there is nothing to paste.
     public var result: String? {
