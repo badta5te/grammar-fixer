@@ -58,8 +58,20 @@ macOS привязывает выданный доступ Accessibility к па
 не требуется, `codesign` с ним работает. Выставлять `Always Trust` не надо.
 
 Проверить результат: `make verify` покажет `Authority=GrammarFixer Dev` вместо
-`Signature=adhoc`. Хеш кода после этого не меняется от сборки к сборке, поэтому
-доступ Accessibility выдаётся один раз.
+`Signature=adhoc`.
+
+Хеш кода при этом всё равно меняется от сборки к сборке, стоит тронуть
+исходники. Доступ переживает пересборку не поэтому, а потому что designated
+requirement подписанного бандла ссылается на идентификатор и сертификат, а не
+на хеш:
+
+```
+designated => identifier "com.badta5te.GrammarFixer"
+               and certificate leaf = H"..."
+```
+
+Проверено опытом, подробности в
+[docs/round-trip-findings.md](docs/round-trip-findings.md).
 
 Если нужен другой сертификат, его имя передаётся через переменную окружения:
 
@@ -78,6 +90,7 @@ Sources/GrammarFixerCore/   весь код приложения
 Resources/Info.plist        описание бандла, собирается руками, не Xcode
 scripts/bundle.sh           сборка .app и подпись
 Tests/                      тесты
+docs/                       выводы прототипов
 .scratch/grammar-fixer/     тикеты
 ```
 
