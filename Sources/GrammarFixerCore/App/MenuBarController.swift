@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 /// The menu bar icon and its menu.
 ///
@@ -146,7 +147,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func openProviderFile() {
         do {
             let url = try ProviderConfigurationFile().createIfMissing()
-            NSWorkspace.shared.open(url)
+
+            // Whoever owns .json opens it, and on a developer's machine that is
+            // Xcode: a four-line settings file arrives in a project editor that
+            // takes seconds to launch. Ask for the plain text editor instead,
+            // which is whatever the person reads plain text with.
+            if let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) {
+                NSWorkspace.shared.open(
+                    [url],
+                    withApplicationAt: editor,
+                    configuration: NSWorkspace.OpenConfiguration()
+                )
+            } else {
+                NSWorkspace.shared.open(url)
+            }
         } catch {
             notices.show(Notice(
                 title: "The provider file could not be created",
