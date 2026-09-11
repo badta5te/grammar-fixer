@@ -1,15 +1,16 @@
 APP := build/GrammarFixer.app
 
-# XCTest поставляется с Xcode, а не с CommandLineTools. Полный Xcode не нужен
-# для сборки приложения, но нужен для запуска тестов, поэтому если текущий
-# тулчейн его не содержит, цели используют тулчейн Xcode через переменную
-# окружения. Это не требует sudo и ничего не меняет в системе, в отличие от
-# xcode-select -s. Один тулчейн на все цели выбран намеренно: иначе сборка и
-# тесты подменяли бы друг другу SDK и каждый раз пересобирали всё заново.
+# XCTest ships with Xcode, not with CommandLineTools. A full Xcode is not
+# needed to build the app but is needed to run the tests, so when the current
+# toolchain lacks it the targets use Xcode's toolchain through an environment
+# variable. That needs no sudo and changes nothing system-wide, unlike
+# xcode-select -s. One toolchain for every target is deliberate: otherwise the
+# build and the tests would keep swapping each other's SDK and rebuild
+# everything each time.
 #
-# Путь к Xcode не зашит: он может быть переименован, лежать не в /Applications
-# или стоять из xcodes. Спрашиваем Spotlight и только потом падаем на путь по
-# умолчанию.
+# The path to Xcode is not hard-coded: it may be renamed, live outside
+# /Applications or come from xcodes. Ask Spotlight first and fall back to the
+# default path only after.
 ifeq ($(shell xcrun --find xctest 2>/dev/null),)
 XCODE_APP := $(shell mdfind "kMDItemCFBundleIdentifier == 'com.apple.dt.Xcode'" 2>/dev/null | head -1)
 ifeq ($(XCODE_APP),)
@@ -24,24 +25,24 @@ endif
 
 all: run
 
-## Собрать, упаковать, подписать и запустить.
-# open переиспользует уже запущенный экземпляр, поэтому старый сначала
-# дожидаемся мёртвым, иначе запустится не новая сборка, а старая.
+## Build, bundle, sign and launch.
+# open reuses an instance that is already running, so wait for the old one to
+# die first, or the old build launches instead of the new one.
 run: bundle
 	@pkill -x GrammarFixer 2>/dev/null || true
 	@while pgrep -qx GrammarFixer; do sleep 0.1; done
 	@open $(APP)
 	@echo "Запущено, иконка в меню-баре"
 
-## Собрать и подписать бандл
+## Build and sign the bundle
 bundle:
 	@./scripts/bundle.sh
 
-## То же, но сборка в релизной конфигурации
+## The same, built in the release configuration
 release:
 	@CONFIG=release ./scripts/bundle.sh
 
-## Показать, чем подписан бандл и какие у него права
+## Show what the bundle is signed with and what entitlements it has
 verify:
 	@codesign -dvvv $(APP) 2>&1 | grep -E '^(Identifier|Authority|Signature)' || true
 	@echo "--- права:"

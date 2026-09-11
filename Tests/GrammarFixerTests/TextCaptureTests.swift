@@ -1,9 +1,8 @@
 import XCTest
 @testable import GrammarFixerCore
 
-/// Захват — единственное место, где тихий сбой стоит дороже всего: если
-/// принять «ничего не выделено» за успех, в чужое приложение уедет вчерашнее
-/// содержимое буфера обмена.
+/// Capture is where a silent failure costs the most: mistaking "nothing was
+/// selected" for success sends yesterday's clipboard into somebody's app.
 @MainActor
 final class TextCaptureTests: XCTestCase {
     private var recorder: Recorder!
@@ -47,7 +46,8 @@ final class TextCaptureTests: XCTestCase {
         XCTAssertEqual(result.outcome, .captured("выделенный текст"))
     }
 
-    /// Ловушка из плана: без счётчика «ничего не выделено» неотличимо от успеха.
+    /// The trap from the plan: without the change count, "nothing selected" is
+    /// indistinguishable from success.
     func testNothingSelectedWhenTheChangeCountNeverMoves() async {
         let result = await makeCapture().capture()
 
@@ -55,8 +55,8 @@ final class TextCaptureTests: XCTestCase {
         XCTAssertNil(clipboard.restored, "до подтверждённого инкремента в буфер не пишется ничего")
     }
 
-    /// Найдено в Chrome: счётчик сдвинулся, а строки в буфере нет — выделение
-    /// было не текстовым.
+    /// Found in Chrome: the change count moved but there is no string in the
+    /// clipboard, because the selection was not text.
     func testNonTextualSelectionIsReportedSeparately() async {
         clock.onTick = { [clipboard] _ in clipboard!.simulateCopy(nil) }
 
@@ -73,8 +73,8 @@ final class TextCaptureTests: XCTestCase {
         XCTAssertEqual(result.outcome, .unsupportedSelection)
     }
 
-    /// Копия может прийти уже после того, как мы сдались. Тогда в буфере
-    /// пользователя молча остаётся его выделение вместо того, что там было.
+    /// A copy can arrive after we have given up. The person's selection then
+    /// quietly stays in their clipboard in place of what was there.
     func testLateCopyRestoresTheClipboard() async {
         let capture = makeCapture()
         let result = await capture.capture()

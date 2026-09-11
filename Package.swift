@@ -5,9 +5,9 @@ let package = Package(
     name: "GrammarFixer",
     platforms: [.macOS(.v14)],
     targets: [
-        // Исполняемый таргет намеренно пустой: в нём только точка входа.
-        // Всё остальное живёт в библиотеке, потому что модуль с точкой входа
-        // нельзя импортировать из тестов.
+        // The executable target is deliberately empty and holds only the
+        // entry point. Everything else lives in the library, because a module
+        // with an entry point cannot be imported from tests.
         .executableTarget(
             name: "GrammarFixer",
             dependencies: ["GrammarFixerCore"],

@@ -2,17 +2,19 @@ import AppKit
 import Carbon.HIToolbox
 import SwiftUI
 
-/// Окно приложения-агента. Два свойства здесь обязательны, и каждое найдено
-/// ошибкой в прототипе, когда панель не появлялась вовсе при `isVisible = true`:
+/// A window for an agent app. Two properties here are mandatory, and each was
+/// found the hard way in the prototype, where the panel did not appear at all
+/// while reporting `isVisible = true`:
 ///
-/// 1. `hidesOnDeactivate = false`. NSPanel, в отличие от NSWindow, по умолчанию
-///    прячется, когда его приложение неактивно. Агент неактивен всегда.
-/// 2. `.nonactivatingPanel`. Форма Spotlight: панель берёт клавиатурный ввод, а
-///    приложение при этом не становится активным. Без этого на macOS 15
-///    `NSApp.activate` просто игнорируется и фокус не приходит.
+/// 1. `hidesOnDeactivate = false`. NSPanel, unlike NSWindow, hides itself by
+///    default when its app is inactive. An agent is always inactive.
+/// 2. `.nonactivatingPanel`. The Spotlight shape: the panel takes keyboard
+///    input without the app becoming active. Without it, macOS 15 simply
+///    ignores `NSApp.activate` and focus never arrives.
 ///
-/// Уровень `.popUpMenu`, а не `.floating`: со своей тройкой панель оказалась бы
-/// под Dock на слое 20 и под соседями вроде AlDente на 24.
+/// The level is `.popUpMenu` rather than `.floating`: at floating's level of
+/// three the panel would sit under the Dock at twenty and under neighbours such
+/// as AlDente at twenty-four.
 @MainActor
 public class FloatingPanel: NSPanel {
     private var outsideClickMonitor: Any?
@@ -33,26 +35,25 @@ public class FloatingPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         animationBehavior = .utilityWindow
 
-        // Прозрачный фон нужен только окну без рамки, которое рисует себе
-        // подложку само. У окна с заголовком он оставил бы полосу заголовка
-        // пустой.
+        // A clear background is only for a borderless window, which draws its
+        // own backing. On a titled window it would leave the title bar empty.
         if !styleMask.contains(.titled) {
             isOpaque = false
             backgroundColor = .clear
         }
 
-        // Именно contentViewController, а не contentView: окно тогда само
-        // берёт размер у SwiftUI и пересчитывает его, когда содержимое меняется.
-        // С голым NSHostingView окно осталось бы в размере, заданном здесь, а
-        // содержимое вылезло бы за край и заехало под заголовок.
+        // contentViewController rather than contentView on purpose: the window
+        // then takes its size from SwiftUI and recomputes it when the content
+        // changes. With a bare NSHostingView the window would keep the size set
+        // here while the content spilled over the edge and under the title.
         contentViewController = NSHostingController(rootView: content())
     }
 
     public override var canBecomeKey: Bool { true }
 
-    /// Показывает панель по центру экрана, где сейчас курсор.
-    /// `orderFrontRegardless`, а не `makeKeyAndOrderFront`: последний из
-    /// неактивного приложения окно на текущее пространство не выводит.
+    /// Shows the panel centred on the screen the cursor is on.
+    /// `orderFrontRegardless` rather than `makeKeyAndOrderFront`: from an
+    /// inactive app the latter does not bring the window to the current space.
     public func present() {
         layoutIfNeeded()
         setContentSize(contentViewController?.view.fittingSize ?? frame.size)
@@ -68,8 +69,8 @@ public class FloatingPanel: NSPanel {
         makeKey()
     }
 
-    /// Закрытие по клику мимо панели. Глобальный монитор получает только
-    /// события, ушедшие мимо нашего приложения, то есть ровно клики снаружи.
+    /// Dismissal on a click outside the panel. A global monitor receives only
+    /// events that went past our app, which is exactly the outside clicks.
     public func dismissOnOutsideClick(_ handler: @escaping () -> Void) {
         onDismiss = handler
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
@@ -92,8 +93,8 @@ public class FloatingPanel: NSPanel {
         onDismiss?()
     }
 
-    /// Esc обрабатывается и здесь: до cancelOperation нажатие доходит не через
-    /// каждый содержащийся в панели вид.
+    /// Escape is handled here as well: the press does not reach cancelOperation
+    /// through every view a panel may contain.
     public override func keyDown(with event: NSEvent) {
         guard Int(event.keyCode) == kVK_Escape else {
             super.keyDown(with: event)

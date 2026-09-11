@@ -1,28 +1,39 @@
 import Foundation
 
-/// Вырезание ключей из чужого текста.
+/// Cutting API keys out of somebody else's text.
 ///
-/// Провайдеры отражают присланный ключ в описании ошибки, а описание уходит
-/// человеку на экран. Экран бывает общим: демонстрация, сосед, скриншот в чат
-/// с вопросом «что это значит». Поэтому ключ вырезается до показа, а не после
-/// первого случая.
+/// Providers echo the key they were sent back in an error description, and the
+/// description goes to a person's screen. Screens get shared: a demo, someone
+/// sitting next to you, a screenshot pasted into a chat asking what this means.
+/// So the key is cut out before it is shown, not after the first incident.
 enum Redaction {
-    private static let prefixes = ["sk-", "sk_", "pk-", "pk_", "gsk_", "xai-", "api-", "key-", "Bearer "]
+    private static let prefixes = ["sk-", "sk_", "pk-", "pk_", "gsk_", "xai-", "api-", "key-"]
 
-    /// Ключ без узнаваемого начала опознаётся по длине: осмысленных слов такой
-    /// длины в описаниях ошибок не бывает.
+    /// A key with no recognizable prefix is spotted by length: error
+    /// descriptions do not contain meaningful words this long.
     private static let opaqueLength = 32
 
+    /// A key also arrives with no spaces around it: `key=sk-…`, `"sk-…"`,
+    /// `(sk-…)`. So a word boundary here is wider than a space.
+    private static let boundaries = CharacterSet(charactersIn: " \t\n=:(),[]{}\"'")
+
     static func withoutKeys(_ text: String) -> String {
-        text
-            .components(separatedBy: " ")
-            .map(hide)
-            .joined(separator: " ")
+        var result = ""
+        var word = ""
+        for character in text {
+            if character.unicodeScalars.allSatisfy(boundaries.contains) {
+                result += hide(word) + String(character)
+                word = ""
+            } else {
+                word.append(character)
+            }
+        }
+        return result + hide(word)
     }
 
     private static func hide(_ word: String) -> String {
-        // Хвостовая пунктуация к ключу не относится и остаётся на месте.
-        let trailing = word.suffix(while: { ".,;:!?)\"'".contains($0) })
+        // Trailing punctuation is not part of the key and stays where it is.
+        let trailing = word.suffix(while: { ".;!?".contains($0) })
         let core = String(word.dropLast(trailing.count))
 
         let looksLikeKey = prefixes.contains { core.hasPrefix($0) && core.count > $0.count + 4 }

@@ -5,14 +5,14 @@ public protocol FocusRestoring {
     func activate(_ app: NSRunningApplication, timeout: TimeInterval) async -> Bool
 }
 
-/// Возврат фокуса подтверждается наблюдением, а не фиксированной задержкой.
-/// Фиксированная задержка даёт «иногда вставилось не туда»: ⌘V улетает, пока
-/// исходное приложение ещё не стало активным.
+/// Returning focus is confirmed by observation, not by a fixed delay. A fixed
+/// delay produces "sometimes it pasted into the wrong window": ⌘V leaves while
+/// the source app has not become active yet.
 ///
-/// В штатном случае это бесплатно: панель не забирает фокус, и ранняя проверка
-/// срабатывает сразу. Когда фокус действительно терялся, прототип намеренно
-/// уводил его в Finder: четыре замера дали возврат за 8–11 мс, уведомление
-/// приходило каждый раз.
+/// In the normal case this costs nothing: the panel does not take focus, and
+/// the early check succeeds at once. To measure the case where focus really was
+/// lost, the prototype sent it to Finder on purpose: four runs came back in
+/// 8 to 11 ms, and the notification arrived every time.
 @MainActor
 public final class FocusRestorer: FocusRestoring {
     public init() {}
@@ -48,7 +48,8 @@ public final class FocusRestorer: FocusRestoring {
                 try? await Task.sleep(for: .seconds(timeout))
                 guard !resumed else { return }
                 resumed = true
-                // Уведомление могло не прийти, хотя приложение уже впереди.
+                // The notification may never arrive even though the app is
+                // already frontmost.
                 let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
                 continuation.resume(returning: front == target)
             }

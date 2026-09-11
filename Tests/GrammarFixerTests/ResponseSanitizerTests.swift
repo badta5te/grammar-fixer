@@ -1,9 +1,9 @@
 import XCTest
 @testable import GrammarFixerCore
 
-/// Санитизация существует не для красоты. Дорогая модель возвращает чистый
-/// текст и без неё, а дешёвая добавляет преамбулу и кавычки — то есть ломается
-/// ровно та модель, ради возможности выбрать которую всё и затевалось.
+/// Sanitizing is not decoration. An expensive model returns clean text without
+/// it, while a cheap one adds a preamble and quotes. The model that breaks is
+/// precisely the one the freedom to choose was built for.
 final class ResponseSanitizerTests: XCTestCase {
     private func clean(_ output: String, original: String = "исходный текст") -> String {
         ResponseSanitizer.clean(output, original: original)
@@ -27,16 +27,26 @@ final class ResponseSanitizerTests: XCTestCase {
         )
     }
 
-    /// Модель повторяет якорь промпта — тот самый, который её же и сдерживает.
+    /// The model repeats the prompt's anchor, the very thing holding it back.
     func testRepeatedAnchorIsDroppedEvenOnTheSameLine() {
         XCTAssertEqual(clean("Rewritten text: Привет, как дела?"), "Привет, как дела?")
     }
 
-    /// Строка с двоеточием бывает и настоящим текстом. Если она была во входе,
-    /// значит это текст пользователя, а не болтовня модели.
+    /// A line with a colon is sometimes real text. If it was in the input then
+    /// it belongs to the person, not to the model's chatter.
     func testColonLineThatCameFromTheOriginalSurvives() {
         let original = "Задачи:\nкупить хлеб"
         XCTAssertEqual(clean("Задачи:\nкупить хлеб", original: original), "Задачи:\nкупить хлеб")
+    }
+
+    /// The model's job is to fix the text, so its answer differs from the
+    /// input by design. A heading of the person's own with a space or a typo
+    /// corrected must not become a preamble because it no longer matches.
+    func testCorrectedColonLineFromTheOriginalSurvives() {
+        XCTAssertEqual(
+            clean("Задачи:\nкупить хлеб", original: "задчи :\nкупить хлеб"),
+            "Задачи:\nкупить хлеб"
+        )
     }
 
     func testLongFirstLineWithColonIsNotMistakenForPreamble() {
@@ -55,7 +65,8 @@ final class ResponseSanitizerTests: XCTestCase {
         XCTAssertEqual(clean("„Привет, как дела?“"), "Привет, как дела?")
     }
 
-    /// Кавычки пользователя трогать нельзя: это его текст, а не обёртка модели.
+    /// The person's own quotes are not to be touched: they are their text, not
+    /// the model's wrapping.
     func testQuotesThatWereInTheOriginalSurvive() {
         XCTAssertEqual(
             clean("«Привет, как дела?»", original: "«привет как дела»"),
@@ -83,7 +94,7 @@ final class ResponseSanitizerTests: XCTestCase {
         XCTAssertEqual(clean("```text\nПривет, как дела?\n```"), "Привет, как дела?")
     }
 
-    /// Ограждение внутри текста — это код пользователя, и он остаётся.
+    /// A fence inside the text is the person's code and stays.
     func testFenceInsideTheTextSurvives() {
         let text = "Смотри пример:\n```\nlet a = 1\n```\nвот так"
         XCTAssertEqual(clean(text, original: text.lowercased()), text)

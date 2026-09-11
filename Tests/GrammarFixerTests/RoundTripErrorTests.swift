@@ -1,8 +1,8 @@
 import XCTest
 @testable import GrammarFixerCore
 
-/// Весь интерфейс приложения на английском. Комментарии и документация — на
-/// русском, и перепутать эти два правила легко, поэтому за границей следит тест.
+/// Every word the app shows a person is English. A stray Russian string is
+/// easy to leave behind, so a test watches the boundary.
 final class RoundTripErrorTests: XCTestCase {
     func testEveryErrorHasSomethingToShowTheUser() {
         for error in RoundTripError.allCases {
@@ -20,15 +20,15 @@ final class RoundTripErrorTests: XCTestCase {
         }
     }
 
-    /// Сообщение должно называть причину, а не только факт отказа: «ничего не
-    /// произошло» — это ровно тот тихий сбой, который тикет обязан устранить.
+    /// A message has to name the cause, not merely the refusal: "nothing
+    /// happened" is exactly the silent failure the ticket exists to remove.
     func testTheSecureInputErrorNamesTheCause() {
         XCTAssertTrue(RoundTripError.secureInputActive.message.lowercased().contains("secure input"))
     }
 }
 
-/// Отказы на пути к модели показываются тем же способом и подчиняются тому же
-/// правилу про язык интерфейса.
+/// Failures on the way to the model are shown the same way and obey the same
+/// rule about the language of the interface.
 final class LLMErrorTests: XCTestCase {
     private let all: [LLMError] = [
         .noConfiguration(path: "~/c.json"),
@@ -59,18 +59,36 @@ final class LLMErrorTests: XCTestCase {
         }
     }
 
-    /// Провайдеры отражают присланный ключ в описании ошибки, а описание
-    /// показывается на экране — в открытом окне, через плечо, на демонстрации
-    /// экрана. Ключ из чужого текста вырезается.
+    /// Providers echo the key they were sent back in an error description, and
+    /// the description is shown on screen: in an open window, over a shoulder,
+    /// during a screen share. The key is cut out of that text.
     func testTheKeyIsCutOutOfTheProviderDescription() {
         let leak = LLMError.unauthorized("Incorrect API key provided: sk-proj-A1b2C3d4E5f6G7h8I9j0K1l2")
         XCTAssertFalse(leak.message.contains("sk-proj-A1b2C3d4E5f6G7h8I9j0K1l2"))
         XCTAssertTrue(leak.message.contains("Incorrect API key provided"))
     }
 
+    /// A key also arrives with no spaces around it: in quotes, after an equals
+    /// sign, in brackets. So a word boundary here is wider than a space.
+    func testTheKeyIsCutOutEvenWithoutSpacesAroundIt() {
+        let leak = LLMError.providerRejected(#"Invalid value for "api_key"="sk-abcdefghijklmnopqrstuvwx""#)
+        XCTAssertFalse(leak.message.contains("sk-abcdefghijklmnopqrstuvwx"))
+        XCTAssertTrue(leak.message.contains("api_key"))
+    }
+
     func testAnOrdinaryDescriptionSurvivesWhole() {
         let error = LLMError.providerRejected("Model gpt-4o-mini-2024-07-18 does not exist")
         XCTAssertTrue(error.message.contains("Model gpt-4o-mini-2024-07-18 does not exist"))
+    }
+
+    /// A blocked plain-HTTP address is not a lost connection. Calling it one
+    /// sends the person to their Wi-Fi instead of their configuration file.
+    func testAnUnknownUrlFailureIsNotCalledALostConnection() {
+        let blocked = URLError(.appTransportSecurityRequiresSecureConnection)
+        guard case .unexpected = LLMError.from(blocked) else {
+            return XCTFail("ожидалось «что-то пошло не так», получено \(LLMError.from(blocked))")
+        }
+        XCTAssertEqual(LLMError.from(URLError(.notConnectedToInternet)), .noConnection)
     }
 
     func testAFailedRoundSaysTheTextWasLeftAlone() {

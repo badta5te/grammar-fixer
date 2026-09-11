@@ -1,21 +1,21 @@
 import Foundation
 
-/// Захват выделения синтетическим ⌘C.
+/// Capturing the selection with a synthetic ⌘C.
 ///
-/// Провал определяется по счётчику изменений буфера, а не по задержке. Без
-/// этого «ничего не выделено» тихо означало бы исправление вчерашнего
-/// содержимого буфера и вставку его в чужое приложение.
+/// Failure is detected by the clipboard's change count, not by elapsed time.
+/// Without that, "nothing was selected" would quietly mean correcting
+/// yesterday's clipboard and pasting it into somebody else's app.
 ///
-/// Порядок железный: **до подтверждённого инкремента в буфер не пишется
-/// ничего.**
+/// The order is inviolable: **nothing is written to the clipboard before a
+/// confirmed increment.**
 @MainActor
 public final class TextCapture {
     public enum Outcome: Equatable, Sendable {
         case captured(String)
-        /// Счётчик не сдвинулся: копировать было нечего.
+        /// The change count never moved: there was nothing to copy.
         case nothingSelected
-        /// Счётчик сдвинулся, а текста нет. Найдено в Chrome на нетекстовом
-        /// выделении: без этой ветки дальше поехал бы nil.
+        /// The change count moved but there is no text. Found in Chrome on a
+        /// non-text selection: without this branch a nil would travel onward.
         case unsupportedSelection
     }
 
@@ -33,16 +33,18 @@ public final class TextCapture {
     private let sleep: @MainActor (TimeInterval) async -> Void
 
     /// - Parameters:
-    ///   - timeout: сколько ждать инкремента. Прототип дал 30 замеров с
-    ///     медианой 34 мс и максимумом 146 мс, и стоявшая там секунда читалась
-    ///     как «приложение не среагировало». Полсекунды — троекратный запас
-    ///     сверх наблюдавшегося максимума. Цена ошибки несимметрична: слишком
-    ///     короткий таймаут объявит «ничего не выделено» там, где текст был.
-    ///   - lateCopyWindow: сколько ещё присматривать за буфером после отказа.
-    ///     Копия, приехавшая с опозданием, иначе молча оставила бы выделение
-    ///     пользователя в его буфере вместо того, что там лежало. Окно короче
-    ///     самого ожидания намеренно: чем дальше от нашего ⌘C, тем вероятнее,
-    ///     что буфер изменил кто-то другой, и тогда защита превращается во вред.
+    ///   - timeout: how long to wait for the increment. The prototype produced
+    ///     30 measurements with a median of 34 ms and a maximum of 146 ms, and
+    ///     the second that used to stand here read as "the app did not react".
+    ///     Half a second is three times the observed maximum. The cost of being
+    ///     wrong is lopsided: too short a timeout declares "nothing selected"
+    ///     where there was text.
+    ///   - lateCopyWindow: how much longer to watch the clipboard after giving
+    ///     up. A copy that arrives late would otherwise quietly leave the
+    ///     person's selection in their clipboard in place of what was there.
+    ///     The window is deliberately shorter than the wait itself: the further
+    ///     from our own ⌘C, the likelier it is that somebody else changed the
+    ///     clipboard, and then the guard does harm instead of good.
     public init(
         clipboard: Clipboard,
         keyboard: SyntheticKeyboard,
@@ -83,14 +85,16 @@ public final class TextCapture {
         return Result(outcome: .nothingSelected, snapshot: snapshot, changeCountBefore: before)
     }
 
-    /// Присматривает за буфером после отказа и возвращает содержимое, если ⌘C
-    /// всё-таки доехал. Сигнал пользователю к этому моменту уже прозвучал:
-    /// быстрый отказ и защита буфера — разные сроки, и смешивать их нельзя.
+    /// Watches the clipboard after a refusal and puts the contents back if ⌘C
+    /// did arrive after all. The beep has already sounded by then: a quick
+    /// refusal and protecting the clipboard run on different clocks, and the
+    /// two must not be merged.
     ///
-    /// Чужую копию, попавшую в это окно, защита затрёт. Случай не выдуманный:
-    /// в терминале с `copy-on-select` выделение само уезжает в буфер, и стоило
-    /// выделить текст сразу после несработавшего хоткея, как копия пропадала.
-    /// Поэтому окно и урезано до полусекунды.
+    /// Somebody else's copy landing inside this window will be overwritten by
+    /// the guard. The case is not hypothetical: in a terminal with
+    /// `copy-on-select` the selection goes to the clipboard by itself, and
+    /// selecting text right after a shortcut that did not fire made that copy
+    /// disappear. That is why the window is cut to half a second.
     @discardableResult
     public func restoreIfCopyLandsLate(after result: Result) async -> Bool {
         for _ in 0 ..< polls(within: lateCopyWindow) {

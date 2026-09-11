@@ -1,18 +1,20 @@
 import Foundation
 
-/// Что делают с захваченным текстом между захватом и вставкой. Отдельный шов
-/// ровно затем, чтобы тикет 04 заменил одну подстановку, а не трогал круг.
+/// What happens to captured text between capture and paste. The seam exists so
+/// that ticket 04 could swap one implementation instead of touching the round
+/// trip.
 @MainActor
 public protocol TextTransforming {
-    /// Бросает `UserFacingError`: у отказа модели обязан быть текст для
-    /// человека. Молчание здесь означало бы, что выделение исчезло в никуда.
+    /// Throws a `UserFacingError`: a failure from the model has to have
+    /// something to say to a person. Silence here would mean the selection
+    /// vanished into nothing.
     func transform(_ text: String) async throws -> String
 }
 
-/// Заглушка вместо модели: верхний регистр видно глазами, и круг проверяется
-/// руками без сети, ключа и денег. Оставлена намеренно — когда круг и модель
-/// расходятся в поведении, подмена одной строки в AppDelegate показывает, чья
-/// это половина.
+/// A placeholder in place of the model: upper case is visible to the eye, and
+/// the round trip can be checked by hand with no network, key or money. Kept on
+/// purpose: when the round trip and the model disagree, swapping one line in
+/// AppDelegate says which half is at fault.
 public struct UppercasePlaceholder: TextTransforming {
     public init() {}
 

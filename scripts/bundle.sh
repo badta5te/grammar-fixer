@@ -1,9 +1,9 @@
 #!/bin/bash
-# Собирает .app из результата SwiftPM и подписывает его.
+# Builds a .app out of what SwiftPM produced and signs it.
 #
-# Подпись обязана быть стабильной: macOS привязывает выданный доступ
-# Accessibility к паре «путь плюс подпись». При ad-hoc подписи хеш кода
-# меняется от сборки к сборке, и доступ приходится выдавать заново каждый раз.
+# The signature has to be stable: macOS ties granted Accessibility access to
+# the pair of path and signature. With an ad-hoc signature the code hash changes
+# from build to build, and access has to be granted again every time.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -22,13 +22,13 @@ mkdir -p "${APP}/Contents/MacOS" "${APP}/Contents/Resources"
 cp "$BINARY" "${APP}/Contents/MacOS/${APP_NAME}"
 cp Resources/Info.plist "${APP}/Contents/Info.plist"
 
-# Порядок важен: подписывать нужно уже собранный бандл целиком, иначе подпись
-# не покроет Info.plist.
+# Order matters: the assembled bundle is signed as a whole, or the signature
+# will not cover Info.plist.
 if [ -n "${SIGN_IDENTITY:-}" ]; then
     identity="$SIGN_IDENTITY"
-# Без -v намеренно: свежий самоподписанный сертификат числится недоверенным,
-# и с -v он бы не нашёлся. Для локальной подписи доверие не требуется,
-# codesign с ним работает.
+# No -v on purpose: a fresh self-signed certificate counts as untrusted and
+# would not be found with -v. Local signing needs no trust, and codesign works
+# with it.
 elif security find-identity -p codesigning 2>/dev/null | grep -qF "$DEV_IDENTITY"; then
     identity="$DEV_IDENTITY"
 else
@@ -42,8 +42,8 @@ else
 WARNING
 fi
 
-# --force затирает подпись и отладочные права, которые SwiftPM накладывает на
-# исполняемый файл при сборке.
+# --force overwrites the signature and the debug entitlements SwiftPM puts on
+# the executable while building.
 codesign --force --sign "$identity" --identifier "$BUNDLE_ID" --timestamp=none "$APP"
 
 echo "Собрано: ${APP}"

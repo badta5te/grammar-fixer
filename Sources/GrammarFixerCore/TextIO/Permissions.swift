@@ -2,25 +2,25 @@ import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
 
-/// Доступ Accessibility. Нужен именно для отправки событий: Carbon-хоткей
-/// регистрируется и срабатывает без него, а вот синтетические ⌘C и ⌘V без
-/// него не доставляются.
+/// Accessibility access. It is needed for sending events, not for reading: a
+/// Carbon hot key registers and fires without it, while synthetic ⌘C and ⌘V are
+/// not delivered without it.
 ///
-/// Состояние спрашивается заново перед каждым кругом, а не запоминается при
-/// запуске: доступ можно отозвать в системных настройках, и тогда круг должен
-/// привести к онбордингу, а не к тишине.
+/// The state is asked again before every round rather than remembered at
+/// launch: access can be revoked in System Settings, and then the round has to
+/// lead to onboarding rather than to silence.
 @MainActor
 public enum Accessibility {
     public static var isTrusted: Bool { AXIsProcessTrusted() }
 
-    /// Просит систему показать её собственное окно с предложением выдать
-    /// доступ. Показывается только один раз за установку, поэтому на него
-    /// нельзя полагаться как на единственный путь.
+    /// Asks the system to show its own window offering to grant access. It
+    /// appears only once per installation, so it cannot be relied on as the
+    /// only way in.
     @discardableResult
     public static func requestAccess() -> Bool {
-        // Константа kAXTrustedCheckOptionPrompt объявлена в C изменяемой
-        // переменной, и Swift 6 не даёт к ней обратиться. Значение у неё —
-        // ровно эта строка.
+        // The constant kAXTrustedCheckOptionPrompt is declared in C as a
+        // mutable variable, and Swift 6 refuses to touch it. Its value is
+        // exactly this string.
         AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
     }
 
@@ -34,8 +34,8 @@ public enum Accessibility {
     }
 }
 
-/// Защищённый ввод. Пока он включён, синтетические события не доставляются
-/// молча, и «ничего не выделено» показалось бы там, где текст выделен.
+/// Secure input. While it is on, synthetic events are dropped silently, and
+/// "nothing was selected" would be shown where text plainly is.
 @MainActor
 public enum SecureInput {
     public static var isActive: Bool { IsSecureEventInputEnabled() }

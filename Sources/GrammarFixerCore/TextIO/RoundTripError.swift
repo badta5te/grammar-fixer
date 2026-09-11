@@ -1,8 +1,7 @@
 import Foundation
 
-/// Нештатные исходы круга. Каждый из них раньше был тихим сбоем, поэтому у
-/// каждого есть текст для человека. Текст английский: весь интерфейс на
-/// английском, за этим следит тест.
+/// The round trip's abnormal outcomes. Each of them used to be a silent
+/// failure, which is why each has something to say to a person.
 public enum RoundTripError: String, CaseIterable, Equatable, Sendable, Error {
     case accessibilityDenied
     case secureInputActive

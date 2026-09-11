@@ -1,9 +1,9 @@
 import XCTest
 @testable import GrammarFixerCore
 
-/// Info.plist собирается руками, а не Xcode, поэтому опечатка в нём ничем не
-/// ловится: приложение просто молча появится в доке или получит чужой
-/// идентификатор и потеряет выданный доступ Accessibility.
+/// Info.plist is assembled by hand rather than by Xcode, so nothing catches a
+/// typo in it: the app would simply turn up in the Dock, or take on a different
+/// identifier and lose the Accessibility access it was granted.
 final class BundleConfigurationTests: XCTestCase {
     private var repositoryRoot: URL {
         URL(fileURLWithPath: #filePath)
@@ -32,9 +32,10 @@ final class BundleConfigurationTests: XCTestCase {
         XCTAssertEqual(plist["CFBundleIdentifier"] as? String, AppInfo.bundleIdentifier)
     }
 
-    /// Имя исполняемого файла в бандле задаётся именем исполняемой цели в
-    /// Package.swift. Если они разойдутся, бандл не запустится вовсе, поэтому
-    /// сравниваем именно с манифестом, а не с ещё одной константой в коде.
+    /// The executable name inside the bundle comes from the executable target
+    /// in Package.swift. If the two drift apart the bundle will not launch at
+    /// all, so this compares against the manifest rather than against yet
+    /// another constant in the code.
     func testExecutableNameMatchesTheExecutableTargetInTheManifest() throws {
         let manifest = try String(contentsOf: repositoryRoot.appending(path: "Package.swift"), encoding: .utf8)
         let pattern = #/\.executableTarget\(\s*name:\s*"(?<name>[^"]+)"/#
@@ -48,8 +49,8 @@ final class BundleConfigurationTests: XCTestCase {
         XCTAssertEqual(plist["LSMinimumSystemVersion"] as? String, "14.0")
     }
 
-    /// Версия записана в двух местах: в plist и запасным значением в коде на
-    /// случай запуска вне бандла. Разойтись они не должны.
+    /// The version is written in two places: the plist, and a fallback in the
+    /// code for running outside a bundle. They must not diverge.
     func testFallbackVersionMatchesThePlist() {
         XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, AppInfo.fallbackVersion)
     }

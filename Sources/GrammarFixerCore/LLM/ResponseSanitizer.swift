@@ -1,18 +1,20 @@
 import Foundation
 
-/// Приведение ответа модели к тому, что можно вставить человеку в текст.
+/// Turning a model's answer into something that can be dropped into a person's
+/// text.
 ///
-/// Промпт запрещает и преамбулу, и кавычки, и ограждения кода, но послушание
-/// стоит денег: дорогая модель и без санитизации возвращает чистый текст, а
-/// дешёвая добавляет «Вот исправленный текст:» и кавычки. Ломается ровно та
-/// модель, ради свободы выбрать которую всё и затевалось.
+/// The prompt forbids preambles, quotes and code fences alike, but obedience
+/// costs money: an expensive model returns clean text without any sanitizing,
+/// while a cheap one adds "Here is the corrected text:" and wraps the result in
+/// quotes. The model that breaks is precisely the one this project exists to
+/// let you choose.
 ///
-/// Каждое правило смотрит на исходный текст, а не только на ответ. Иначе
-/// санитизация уносит кавычки и двоеточия самого пользователя, а это уже не
-/// исправление грамматики, а порча текста.
+/// Every rule looks at the original text, not only at the answer. Otherwise
+/// sanitizing carries off the person's own quotes and colons, and that is no
+/// longer fixing grammar but damaging text.
 public enum ResponseSanitizer {
-    /// Якоря, которые модель повторяет за промптом. Свои — значит опознаются
-    /// точно, без догадок по форме строки.
+    /// Anchors the model repeats back from the prompt. They are ours, so they
+    /// are recognized exactly, with no guessing from the shape of a line.
     private static let anchors = [
         "rewritten text:",
         "corrected text:",
@@ -22,9 +24,9 @@ public enum ResponseSanitizer {
         "вот исправленный текст:",
     ]
 
-    /// Пары кавычек, которыми модель оборачивает ответ. Русские и типографские
-    /// здесь не для полноты: текст пользователя чаще всего русский, и обёртка
-    /// приходит в тех же кавычках, что и текст.
+    /// Quote pairs a model wraps an answer in. The Russian and typographic
+    /// ones are not here for completeness: the text is most often Russian, and
+    /// the wrapping arrives in the same quotes as the text.
     private static let quotePairs: [(open: Character, close: Character)] = [
         ("\"", "\""),
         ("'", "'"),
@@ -35,8 +37,8 @@ public enum ResponseSanitizer {
         ("‘", "’"),
     ]
 
-    /// Длиннее этого строка с двоеточием — почти наверняка настоящий текст,
-    /// а не преамбула.
+    /// A line with a colon longer than this is almost certainly real text
+    /// rather than a preamble.
     private static let preambleLineLimit = 60
 
     public static func clean(_ output: String, original: String) -> String {
@@ -47,8 +49,8 @@ public enum ResponseSanitizer {
         return text.trimmed
     }
 
-    /// Ограждение снимается только когда оно обнимает весь ответ. Ограждение
-    /// внутри текста — это код пользователя, и он остаётся на месте.
+    /// A fence is removed only when it wraps the whole answer. A fence inside
+    /// the text is the person's own code and stays where it is.
     private static func withoutCodeFences(_ text: String) -> String {
         let lines = text.components(separatedBy: "\n")
         guard lines.count >= 3,
@@ -73,15 +75,19 @@ public enum ResponseSanitizer {
         guard !rest.isEmpty,
               firstLine.hasSuffix(":"),
               firstLine.count <= preambleLineLimit,
-              // Та же строка во входе значит, что она принадлежит пользователю.
-              firstLine.lowercased() != original.firstLineTrimmed.lowercased()
+              // Whether the line belongs to the person is decided by the shape
+              // of their input, not by comparing the two lines. Comparing them
+              // fails the moment the model does its job: a heading of their own
+              // with a typo fixed no longer matches, and their heading would be
+              // deleted as if it were the model's chatter.
+              !original.firstLineTrimmed.hasSuffix(":")
         else { return text }
         return rest
     }
 
     private static func withoutWrappingQuotes(_ text: String, original: String) -> String {
         var text = text
-        // Два прохода: встречается и «"«текст»"». Больше двух — уже не обёртка.
+        // Two passes: `"«text»"` happens. More than two is not wrapping.
         for _ in 0..<2 {
             guard let stripped = removingOneQuoteLayer(text, original: original) else { return text }
             text = stripped
@@ -94,11 +100,11 @@ public enum ResponseSanitizer {
         let original = original.trimmed
 
         for pair in quotePairs where first == pair.open && last == pair.close {
-            // Кавычка, с которой начинается вход, принадлежит пользователю.
+            // A quote the input starts with belongs to the person.
             guard original.first != pair.open else { continue }
 
-            // «"привет" и "пока"» тоже начинается и кончается кавычкой, но
-            // обёрткой не является: снятие крайних испортило бы текст.
+            // `"hello" and "bye"` also begins and ends with a quote without
+            // being wrapped: dropping the outer ones would damage the text.
             if pair.open == pair.close {
                 guard text.filter({ $0 == pair.open }).count == 2 else { continue }
             } else {

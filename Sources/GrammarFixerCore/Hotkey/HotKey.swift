@@ -1,10 +1,10 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Carbon-обработчик — это указатель на C-функцию, он не умеет захватывать
-/// контекст. Замыкания лежат в таблице по идентификатору хоткея. Carbon
-/// вызывает обработчик на главном потоке в ходе диспетчеризации событий,
-/// поэтому изоляция главного актора здесь не нарушается.
+/// A Carbon handler is a plain C function pointer and cannot capture context.
+/// The closures live in a table keyed by hot key identifier. Carbon calls the
+/// handler on the main thread while dispatching events, so main actor isolation
+/// is not violated here.
 @MainActor private var hotKeyActions: [UInt32: () -> Void] = [:]
 @MainActor private var nextHotKeyID: UInt32 = 1
 @MainActor private var sharedHandler: EventHandlerRef?
@@ -32,18 +32,18 @@ private func hotKeyEventHandler(
     return noErr
 }
 
-/// Глобальный хоткей через Carbon. Этот путь не требует доступа Accessibility,
-/// в отличие от CGEventTap, и переживает смену активного приложения.
+/// A global hot key through Carbon. Unlike CGEventTap this path needs no
+/// Accessibility access, and it survives a change of the active app.
 ///
-/// Успешная регистрация не означает, что комбинация свободна: прототип получил
-/// noErr на сочетании, занятом Raycast. Полагаться на код возврата как на
-/// детектор конфликта нельзя.
+/// A successful registration does not mean the combination is free: the
+/// prototype got noErr for a combination Raycast already owned. The return code
+/// cannot be relied on as a conflict detector.
 @MainActor
 public final class HotKey {
     private var reference: EventHotKeyRef?
     private let id: UInt32
 
-    /// - Returns: nil, если система отказалась регистрировать комбинацию.
+    /// - Returns: nil if the system refused to register the combination.
     public init?(keyCode: UInt32, carbonModifiers: UInt32, action: @escaping () -> Void) {
         id = nextHotKeyID
         nextHotKeyID += 1
@@ -67,7 +67,8 @@ public final class HotKey {
             }
         }
 
-        // Подпись — произвольные четыре байта, отличающие наши хоткеи от чужих.
+        // The signature is four arbitrary bytes telling our hot keys from
+        // everybody else's.
         let hotKeyID = EventHotKeyID(signature: OSType(0x4746_5849), id: id)
         let status = RegisterEventHotKey(
             keyCode,
@@ -85,9 +86,10 @@ public final class HotKey {
         hotKeyActions[id] = action
     }
 
-    /// Снимает регистрацию. Отдельным методом, а не в deinit: deinit не
-    /// изолирован главным актором и не имеет права трогать ни таблицу, ни
-    /// EventHotKeyRef. Пригодится редактору хоткея из тикета 09.
+    /// Unregisters the hot key. A method of its own rather than deinit: deinit
+    /// is not isolated to the main actor and has no right to touch either the
+    /// table or the EventHotKeyRef. The shortcut editor in ticket 09 will want
+    /// this.
     public func invalidate() {
         if let reference {
             UnregisterEventHotKey(reference)

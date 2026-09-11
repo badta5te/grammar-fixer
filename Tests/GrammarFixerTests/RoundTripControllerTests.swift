@@ -2,9 +2,9 @@ import AppKit
 import XCTest
 @testable import GrammarFixerCore
 
-/// Круг целиком. Проверяется не то, что он работает, а то, что каждая ветка
-/// выхода чем-то заканчивается: тихий отказ здесь значит, что человек ждёт
-/// замены выделения, которой не будет.
+/// The whole round trip. What is under test is not that it works but that
+/// every way out of it ends in something: a silent failure here means somebody
+/// is waiting for their selection to be replaced and it never will be.
 @MainActor
 final class RoundTripControllerTests: XCTestCase {
     private var recorder: Recorder!
@@ -32,7 +32,8 @@ final class RoundTripControllerTests: XCTestCase {
         settings.pasteMethod = .clipboard
         deniedShown = 0
 
-        // Захват удаётся: с третьего тика опроса счётчик буфера сдвигается.
+        // Capture succeeds: on the third polling tick the clipboard change
+        // count moves.
         clock.onTick = { [clipboard] tick in
             if tick == 3 { clipboard!.simulateCopy("выделенный текст") }
         }
@@ -64,7 +65,7 @@ final class RoundTripControllerTests: XCTestCase {
         )
     }
 
-    /// Ждёт, пока круг дойдёт до конца: он живёт в отдельной задаче.
+    /// Waits for the round to finish: it lives in a task of its own.
     private func settle() async {
         for _ in 0..<200 { await Task.yield() }
     }
@@ -75,8 +76,8 @@ final class RoundTripControllerTests: XCTestCase {
         await settle()
 
         XCTAssertEqual(transform.received, ["выделенный текст"])
-        // Порядок и есть то, что ломается незаметно: вернуть снимок раньше
-        // вставки значит вставить в чужой документ прежнее содержимое буфера.
+        // The order is what breaks unnoticed: restoring the snapshot before
+        // the paste means pasting the previous clipboard into a document.
         XCTAssertEqual(
             recorder.events.filter { ["transform", "write", "paste", "restore"].contains($0) },
             ["transform", "write", "paste", "restore"]
@@ -85,9 +86,10 @@ final class RoundTripControllerTests: XCTestCase {
         XCTAssertTrue(notices.shown.isEmpty)
     }
 
-    /// Главное новое место тикета. К моменту отказа модели выделение человека
-    /// уже лежит в буфере обмена вместо того, что там было: захват положил его
-    /// туда. Без возврата отказ сети тихо съедает буфер.
+    /// The ticket's central new case. By the time the model fails, the
+    /// person's selection is already in the clipboard in place of whatever was
+    /// there, because capture put it there. Without a restore, a network
+    /// failure quietly eats the clipboard.
     func testFailedModelRestoresTheClipboard() async {
         transform.answer = .failure(LLMError.noConnection)
         makeController().run()
@@ -108,9 +110,9 @@ final class RoundTripControllerTests: XCTestCase {
         XCTAssertEqual(notices.shown.map(\.title), [LLMError.timedOut.title])
     }
 
-    /// Круг с моделью длится секунды, а не миллисекунды. Второе нажатие в это
-    /// время человек делает именно потому, что не видит результата, и оно
-    /// обязано хоть чем-то ответить.
+    /// A round with a model takes seconds, not milliseconds. A second press
+    /// during that time happens precisely because no result is visible, and it
+    /// has to answer with something.
     func testSecondPressDuringTheRoundIsAnswered() async {
         transform.waitsForRelease = true
         let controller = makeController()

@@ -1,10 +1,10 @@
 import Foundation
 
-/// Отказы на пути к модели. Текст английский, как и весь интерфейс.
+/// Refusals on the way to the model.
 ///
-/// Ключ в сообщения не попадает никогда, в том числе из тела ответа провайдера:
-/// провайдеры иногда отражают присланный ключ в описании ошибки, а сообщение
-/// видно на экране через плечо.
+/// The key never reaches a message, not even by way of the provider's own
+/// response body: providers sometimes echo the key they were sent back in the
+/// error description, and a message on screen is readable over a shoulder.
 public enum LLMError: UserFacingError, Equatable {
     case noConfiguration(path: String)
     case brokenConfiguration(path: String, reason: String)
@@ -16,6 +16,7 @@ public enum LLMError: UserFacingError, Equatable {
     case providerRejected(String?)
     case providerUnavailable(status: Int, detail: String?)
     case emptyAnswer
+    case unexpected(String)
 
     public var title: String {
         switch self {
@@ -29,6 +30,7 @@ public enum LLMError: UserFacingError, Equatable {
         case .providerRejected: "The provider refused the request"
         case .providerUnavailable: "The provider is unavailable"
         case .emptyAnswer: "The model returned nothing"
+        case .unexpected: "Something went wrong"
         }
     }
 
@@ -56,6 +58,9 @@ public enum LLMError: UserFacingError, Equatable {
                 + Self.suffix(detail)
         case .emptyAnswer:
             "The model answered with no text at all. Your text was left untouched."
+        case .unexpected(let detail):
+            "GrammarFixer could not finish the request, and your text was left untouched."
+                + Self.suffix(detail)
         }
     }
 
@@ -64,22 +69,31 @@ public enum LLMError: UserFacingError, Equatable {
         return "\n\n" + Redaction.withoutKeys(detail)
     }
 
-    /// Ошибки сети приходят из URLSession и переводятся здесь, чтобы человек
-    /// видел причину, а не номер.
+    /// Network failures arrive from URLSession and are translated here, so the
+    /// person sees a cause rather than a number.
     static func from(_ error: any Error) -> LLMError {
         if let error = error as? LLMError { return error }
-        guard let error = error as? URLError else { return .noConnection }
+        // Not every failure is the network. Calling an unrelated error a
+        // network problem sends the person to fix their connection instead of
+        // their configuration.
+        guard let error = error as? URLError else {
+            return .unexpected(String(describing: error))
+        }
         switch error.code {
         case .timedOut: return .timedOut
         case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost,
              .cannotConnectToHost, .dnsLookupFailed:
             return .noConnection
-        default: return .noConnection
+        default:
+            // A blocked plain-HTTP address, a TLS failure, a cancelled request:
+            // none of these are the connection, and calling them that sends the
+            // person to their Wi-Fi instead of their configuration file.
+            return .unexpected(error.localizedDescription)
         }
     }
 
-    /// Перевод кода ответа в отказ. Без тела ответа остаётся один номер, по
-    /// которому человек ничего сделать не может.
+    /// Turns a status code into a refusal. Without the response body only a
+    /// number is left, and a number is nothing a person can act on.
     static func from(status: Int, body: String) -> LLMError {
         let detail = ProviderErrorBody.message(fromBody: body)
         switch status {

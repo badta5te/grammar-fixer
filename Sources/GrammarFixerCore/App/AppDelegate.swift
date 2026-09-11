@@ -39,8 +39,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             onShowOnboarding: { [onboarding] in onboarding.show() }
         )
 
-        // Без доступа круг работать не может, и молчать об этом при первом
-        // запуске значит оставить человека с хоткеем, который ничего не делает.
+        // The round trip cannot work without access, and saying nothing about
+        // that on a first launch leaves a person with a shortcut that does
+        // nothing.
         if !Accessibility.isTrusted {
             onboarding.show()
         }

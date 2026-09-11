@@ -1,9 +1,9 @@
 import Foundation
 
-/// Разбор одной строки Server-Sent Events. Вынесен отдельно и чистым, потому
-/// что расходятся серверы именно здесь: пробел после `data:`, комментарии для
-/// поддержания соединения, кусок расхода токенов с пустым списком choices.
-/// Проверять это живым запросом к провайдеру дорого и ненадёжно.
+/// Parsing a single Server-Sent Events line. Kept separate and pure because
+/// this is exactly where servers diverge: the space after `data:`, keep-alive
+/// comments, the token usage chunk with an empty list of choices. Checking that
+/// against a live provider is expensive and unreliable.
 enum StreamChunk {
     static func event(from line: String) throws -> StreamEvent? {
         let line = line.trimmed
@@ -16,8 +16,9 @@ enum StreamChunk {
         guard let data = payload.data(using: .utf8),
               let chunk = try? JSONDecoder().decode(Chunk.self, from: data)
         else {
-            // Нечитаемый кусок — не повод рушить круг: если ответа так и не
-            // будет, клиент скажет об этом сам, увидев пустой результат.
+            // An unreadable chunk is no reason to tear down the round trip.
+            // If no answer arrives at all, the caller says so on seeing an
+            // empty result.
             return nil
         }
 
@@ -25,8 +26,9 @@ enum StreamChunk {
             throw LLMError.providerRejected(error.message)
         }
 
-        // Текст идёт первым: сервер, шлющий расход вместе с последним куском
-        // текста, отдаёт в нём пустую строку, так что порядок ничего не теряет.
+        // Text comes first: a server that sends usage together with the last
+        // chunk of text puts an empty string in it, so this order loses
+        // nothing.
         if let content = chunk.choices?.first?.delta?.content, !content.isEmpty {
             return .delta(content)
         }
@@ -50,8 +52,8 @@ enum StreamChunk {
             let delta: Delta?
         }
 
-        /// Рассуждающие модели кладут ход мысли в отдельное поле. Сюда оно не
-        /// попадает намеренно: в текст пользователя оно не идёт.
+        /// Reasoning models put their train of thought in a separate field.
+        /// It is deliberately absent here: it does not belong in the answer.
         struct Delta: Decodable {
             let content: String?
         }
@@ -68,8 +70,8 @@ enum StreamChunk {
     }
 }
 
-/// Тело ошибки провайдера. Одни серверы кладут в `error` объект с полем
-/// `message`, другие — просто строку.
+/// A provider's error body. Some servers put an object with a `message` field
+/// in `error`, others just a string.
 struct ProviderErrorBody: Decodable {
     let message: String?
 
@@ -85,7 +87,7 @@ struct ProviderErrorBody: Decodable {
 
     private enum CodingKeys: String, CodingKey { case message }
 
-    /// Достаёт человеческое описание из тела ответа с ошибкой.
+    /// Digs a human description out of a failed response body.
     static func message(fromBody body: String) -> String? {
         guard let data = body.data(using: .utf8) else { return nil }
         struct Envelope: Decodable { let error: ProviderErrorBody? }

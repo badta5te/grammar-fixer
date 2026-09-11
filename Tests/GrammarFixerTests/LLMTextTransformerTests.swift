@@ -1,8 +1,9 @@
 import XCTest
 @testable import GrammarFixerCore
 
-/// Клиент подменяется целиком: проверяется сборка ответа из кусков потока и
-/// то, что отказ модели доходит наружу, а не превращается в пустой текст.
+/// The client is replaced whole: what is checked is that the answer is
+/// assembled out of stream chunks, and that a refusal from the model reaches
+/// the caller instead of turning into empty text.
 final class FakeLLMClient: LLMClient, @unchecked Sendable {
     var events: [StreamEvent] = []
     var failure: (any Error)?
@@ -53,7 +54,8 @@ final class LLMTextTransformerTests: XCTestCase {
         XCTAssertTrue(client.prompts.first?.hasSuffix("Rewritten text:") == true)
     }
 
-    /// Санитизация стоит между потоком и текстом пользователя, а не рядом.
+    /// Sanitizing stands between the stream and the person's text, not beside
+    /// it.
     func testTheAnswerIsSanitizedOnTheWayOut() async throws {
         client.events = [.delta("Вот исправленный текст:\n\"Привет, как дела?\""), .done]
 
@@ -78,7 +80,7 @@ final class LLMTextTransformerTests: XCTestCase {
         }
     }
 
-    /// Ненастроенный провайдер обязан сказать об этом до запроса, а не после.
+    /// An unconfigured provider has to say so before the request, not after.
     func testMissingConfigurationStopsBeforeTheRequest() async {
         let transformer = makeTransformer(configuration: { throw LLMError.noConfiguration(path: "~/c.json") })
 
@@ -98,7 +100,7 @@ extension ProviderConfiguration {
     )
 }
 
-/// XCTAssertThrowsError не умеет ждать асинхронное выражение.
+/// XCTAssertThrowsError cannot await an asynchronous expression.
 @MainActor
 func XCTAssertThrowsErrorAsync<T>(
     _ expression: @autoclosure () async throws -> T,

@@ -1,8 +1,9 @@
 import Foundation
 
-/// Ошибка, у которой есть текст для человека. Тихий сбой в этом приложении
-/// стоит дороже обычного: человек выделил текст, нажал хоткей и ждёт замены.
-/// Молчание он отличит от работы только через минуту.
+/// A failure that has something to say to a person. A silent failure costs
+/// more here than elsewhere: somebody selected text, pressed the shortcut and
+/// is waiting for it to be replaced. They cannot tell silence from work for
+/// another minute.
 public protocol UserFacingError: Error {
     var title: String { get }
     var message: String { get }
@@ -10,8 +11,8 @@ public protocol UserFacingError: Error {
 
 extension RoundTripError: UserFacingError {}
 
-/// Сообщение, у которого нет своего типа ошибки: разовые случаи вроде «журнала
-/// ещё нет». Заводить ради них перечисление незачем.
+/// A message with no error type of its own: one-off cases such as "there is no
+/// log yet". Declaring an enum for those would buy nothing.
 public struct Notice: UserFacingError {
     public let title: String
     public let message: String

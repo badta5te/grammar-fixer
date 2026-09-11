@@ -2,9 +2,9 @@ import AppKit
 import XCTest
 @testable import GrammarFixerCore
 
-/// Общий журнал вызовов. Порядок операций в круге — это и есть то, что может
-/// сломаться незаметно: восстановить буфер раньше, чем целевое приложение его
-/// прочитало, значит вставить в чужой документ прошлое содержимое буфера.
+/// A shared record of calls. The order of operations in the round is what can
+/// break unnoticed: restoring the clipboard before the target app has read it
+/// means pasting the previous clipboard into somebody's document.
 @MainActor
 final class Recorder {
     private(set) var events: [String] = []
@@ -24,7 +24,8 @@ final class FakeClipboard: Clipboard {
         self.snapshotToReturn = snapshot
     }
 
-    /// Имитирует доставку синтетического ⌘C: счётчик сдвинулся, текст появился.
+    /// Imitates a synthetic ⌘C being delivered: the count moved, text
+    /// appeared.
     func simulateCopy(_ copied: String?) {
         changeCount += 1
         text = copied
@@ -82,7 +83,7 @@ final class FakeFocusRestorer: FocusRestoring {
     }
 }
 
-/// Счётчик тиков вместо часов: тесты не должны зависеть от настоящего времени.
+/// A tick counter instead of a clock: tests must not depend on real time.
 @MainActor
 final class FakeClock {
     private(set) var ticks = 0
@@ -117,8 +118,8 @@ final class FakeNotices: NoticePresenting {
     func show(_ error: any UserFacingError) { shown.append(error) }
 }
 
-/// Модель, которую можно задержать. Круг с настоящей моделью длится секунды, и
-/// проверять поведение во время ожидания нужно именно так.
+/// A model that can be held in place. A round with a real model takes seconds,
+/// and behaviour during that wait has to be checked exactly this way.
 @MainActor
 final class FakeTransform: TextTransforming {
     private let recorder: Recorder

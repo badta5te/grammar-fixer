@@ -2,9 +2,9 @@ import AppKit
 import XCTest
 @testable import GrammarFixerCore
 
-/// У вставки проверяется порядок, а не факт: восстановить буфер раньше, чем
-/// целевое приложение его прочитало, значит вставить в чужой документ то, что
-/// лежало в буфере до вызова.
+/// What is checked about pasting is the order, not the fact: restoring the
+/// clipboard before the target app has read it means pasting whatever the
+/// clipboard held beforehand into somebody's document.
 @MainActor
 final class TextPasterTests: XCTestCase {
     private var recorder: Recorder!
@@ -63,8 +63,8 @@ final class TextPasterTests: XCTestCase {
         XCTAssertNil(clipboard.restored)
     }
 
-    /// Набор текста не трогает буфер вовсе, поэтому его можно вернуть сразу и
-    /// выдуманная задержка исчезает из круга.
+    /// Typing does not touch the clipboard at all, so it can be put back at
+    /// once and the invented delay disappears from the round.
     func testTypingRestoresImmediatelyAndNeverTouchesTheClipboardContents() async {
         let result = await paste(method: .typing, restoreClipboard: true)
 
@@ -80,7 +80,8 @@ final class TextPasterTests: XCTestCase {
         XCTAssertEqual(recorder.events, ["activate", "type"])
     }
 
-    /// Если фокус не вернулся, вставлять нельзя: текст уедет не в то окно.
+    /// If focus did not come back, nothing may be pasted: the text would land
+    /// in the wrong window.
     func testPasteIsAbandonedWhenFocusDoesNotReturn() async {
         focus.confirms = false
 

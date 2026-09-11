@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// Сообщение об ошибке. Обычный NSAlert здесь не годится: приложение-агент
-/// неактивно, и модальное окно может не получить ни фокуса, ни показа. Панель
-/// со свойствами FloatingPanel показывается гарантированно.
+/// An error message. A plain NSAlert will not do: an agent app is inactive, and
+/// a modal window may get neither focus nor a chance to appear. A panel with
+/// FloatingPanel's properties is shown reliably.
 @MainActor
 public final class NoticePanel: NoticePresenting {
     private var panel: FloatingPanel?
@@ -25,8 +25,8 @@ public final class NoticePanel: NoticePresenting {
         panel.present()
         self.panel = panel
 
-        // Сообщение не должно висеть вечно: у приложения нет ни дока, ни окна,
-        // куда пользователь мог бы к нему вернуться.
+        // The message must not hang around forever: the app has no Dock icon
+        // and no window a person could come back to it through.
         dismissTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(timeout))
             guard !Task.isCancelled else { return }

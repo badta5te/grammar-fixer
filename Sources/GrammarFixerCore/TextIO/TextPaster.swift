@@ -1,16 +1,16 @@
 import AppKit
 
 public enum PasteMethod: String, CaseIterable, Sendable {
-    /// ⌘V. Быстро и предсказуемо, но буфер обмена приходится занять.
+    /// ⌘V. Fast and predictable, but the clipboard has to be taken over.
     case clipboard
-    /// Набор текста событиями. Буфер не трогается вовсе.
+    /// Typing the text as events. The clipboard is never touched.
     case typing
 }
 
-/// Вставка результата обратно в исходное приложение.
+/// Pasting the result back into the source app.
 ///
-/// Порядок важнее любой отдельной операции: сначала фокус, потом вставка, и
-/// только потом возврат буфера.
+/// The order matters more than any single step: focus first, then the paste,
+/// and only then the clipboard restore.
 @MainActor
 public final class TextPaster {
     private let clipboard: Clipboard
@@ -20,12 +20,13 @@ public final class TextPaster {
     private let clipboardHoldDelay: TimeInterval
     private let sleep: @MainActor (TimeInterval) async -> Void
 
-    /// - Parameter clipboardHoldDelay: сколько держать результат в буфере после
-    ///   ⌘V. Узнать, когда целевое приложение прочитало буфер, нечем, поэтому
-    ///   число здесь неизбежно выдуманное. Выбрано с запасом намеренно: вернуть
-    ///   буфер слишком рано значит вставить в чужой документ прошлое содержимое
-    ///   буфера, а слишком поздно — всего лишь ненадолго занять буфер. Кому
-    ///   выдуманное число неприемлемо, тому есть `.typing`, где его нет вовсе.
+    /// - Parameter clipboardHoldDelay: how long to keep the result in the
+    ///   clipboard after ⌘V. There is no way to learn when the target app has
+    ///   read the clipboard, so the number here is unavoidably invented. It is
+    ///   deliberately generous: restoring too early means pasting the previous
+    ///   clipboard into somebody's document, while restoring too late merely
+    ///   occupies the clipboard for a moment longer. Anyone who finds an
+    ///   invented number unacceptable has `.typing`, which has none.
     public init(
         clipboard: Clipboard,
         keyboard: SyntheticKeyboard,
@@ -49,8 +50,8 @@ public final class TextPaster {
         restoreClipboard: Bool,
         snapshot: ClipboardSnapshot
     ) async -> Swift.Result<Void, RoundTripError> {
-        // При наборе текста буфер больше никому не нужен, поэтому он
-        // возвращается сразу, и ждать чтения не приходится.
+        // When typing, nobody needs the clipboard any more, so it is put back
+        // at once with no reading to wait for.
         if method == .typing, restoreClipboard {
             clipboard.restore(snapshot)
         }

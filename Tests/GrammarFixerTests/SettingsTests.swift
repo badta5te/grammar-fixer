@@ -1,9 +1,9 @@
 import XCTest
 @testable import GrammarFixerCore
 
-/// Настройки читаются заново на каждом круге, чтобы переключатель действовал
-/// без перезапуска. Значения по умолчанию важны сами по себе: при первом
-/// запуске никаких ключей ещё нет.
+/// Settings are read afresh on every round so a switch takes effect without a
+/// restart. The defaults matter in their own right: on a first launch there are
+/// no keys at all.
 @MainActor
 final class SettingsTests: XCTestCase {
     private var defaults: UserDefaults!
@@ -39,8 +39,8 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(Settings(defaults: defaults).pasteMethod, .typing)
     }
 
-    /// Ключ можно испортить руками через defaults write, и приложение не должно
-    /// от этого перестать вставлять.
+    /// A key can be corrupted by hand through defaults write, and that must
+    /// not stop the app from pasting.
     func testAnUnknownPasteMethodFallsBackToTheClipboard() {
         defaults.set("carrier pigeon", forKey: Settings.pasteMethodKey)
 

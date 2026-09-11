@@ -1,9 +1,10 @@
 import AppKit
 import GrammarFixerCore
 
-// Меню-бар приложение без иконки в доке. Политика активации дублирует
-// LSUIElement из Info.plist: plist решает для запуска через Finder и open,
-// setActivationPolicy — для запуска бинарника напрямую при отладке.
+// A menu bar app with no Dock icon. The activation policy duplicates
+// LSUIElement from Info.plist: the plist decides for launches through Finder
+// and open, setActivationPolicy for running the binary directly while
+// debugging.
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 

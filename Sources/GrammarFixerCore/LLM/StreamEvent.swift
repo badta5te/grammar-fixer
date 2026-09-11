@@ -1,8 +1,8 @@
 import Foundation
 
-/// Что приходит из потока модели. Поток нужен не ради красоты: панель тикета 05
-/// показывает текст по мере прихода, а расход токенов приезжает последним
-/// куском и нужен учёту расходов.
+/// What arrives from the model's stream. Streaming is not decoration: ticket
+/// 05's panel shows the text as it lands, and token usage arrives in the last
+/// chunk, where the spending counter needs it.
 public enum StreamEvent: Equatable, Sendable {
     case delta(String)
     case usage(TokenUsage)
@@ -19,8 +19,8 @@ public struct TokenUsage: Equatable, Sendable {
     }
 }
 
-/// Поток модели. Реализация одна на все OpenAI-совместимые серверы, адаптер
-/// Anthropic придёт отдельным тикетом и встанет сюда же.
+/// A model's stream. One implementation covers every OpenAI-compatible server;
+/// the Anthropic adapter arrives in its own ticket and fits in right here.
 public protocol LLMClient: Sendable {
     func stream(prompt: String) -> AsyncThrowingStream<StreamEvent, any Error>
 }

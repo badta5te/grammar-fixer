@@ -1,11 +1,11 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Круг целиком: хоткей, захват, исправление моделью, вставка.
+/// The whole round trip: shortcut, capture, correction by the model, paste.
 ///
-/// Каждая ветка выхода отсюда чем-то заканчивается — сигналом, сообщением или
-/// онбордингом. Тихих отказов не остаётся ни одного: тихий отказ здесь значит,
-/// что человек ждёт результата, которого не будет.
+/// Every way out of here ends in something, whether a beep, a message or the
+/// onboarding screen. Not one silent failure is left: a silent failure here
+/// means somebody is waiting for a result that will never come.
 @MainActor
 public final class RoundTripController {
     private let settings: Settings
@@ -40,9 +40,9 @@ public final class RoundTripController {
         self.onAccessibilityDenied = onAccessibilityDenied
     }
 
-    /// Регистрирует ⇧⌃⌥⌘G. Доступа Accessibility для этого не требуется:
-    /// Carbon-хоткей срабатывает и до выдачи разрешения, поэтому нажатие
-    /// доходит до нас и мы можем показать онбординг вместо тишины.
+    /// Registers ⇧⌃⌥⌘G. No Accessibility access is needed for this: a Carbon
+    /// hot key fires before the permission is granted, so the press reaches us
+    /// and we can show the onboarding screen instead of staying silent.
     public func registerHotKey() {
         hotKey = HotKey(
             keyCode: UInt32(kVK_ANSI_G),
@@ -54,18 +54,19 @@ public final class RoundTripController {
             Log.write("хоткей ⇧⌃⌥⌘G зарегистрирован")
             return
         }
-        // Комбинацию мог занять кто-то другой — тот же Raycast, ради отказа от
-        // которого всё затевалось. Без сообщения человек получает приложение,
-        // которое просто ничего не делает, и никакого способа это понять.
+        // Without a message the person gets an app that simply does nothing,
+        // and no way to find out why. This does not catch every conflict: the
+        // prototype got noErr for a combination Raycast already owned, so a
+        // taken shortcut can still register successfully and stay silent.
         Log.write("хоткей ⇧⌃⌥⌘G зарегистрировать НЕ удалось")
         notices.show(RoundTripError.hotKeyUnavailable)
     }
 
     public func run() {
         guard !isRunning else {
-            // Круг с моделью длится секунды. Второе нажатие человек делает
-            // именно потому, что не видит результата, и молчание в ответ
-            // читается как «хоткей сломался».
+            // A round trip with a model takes seconds. A second press happens
+            // precisely because no result is visible yet, and silence in reply
+            // reads as "the shortcut is broken".
             Log.write("повторное нажатие во время круга, пропущено")
             environment.beep()
             return
@@ -82,17 +83,18 @@ public final class RoundTripController {
         Log.section("хоткей: \(sourceApp?.localizedName ?? "неизвестно")")
         Log.write("флаги: \(ModifierFlags.describeCurrent()), способ вставки: \(settings.pasteMethod.rawValue)")
 
-        // Доступ спрашивается заново на каждом круге: его можно отозвать в
-        // системных настройках, и тогда круг обязан привести к онбордингу.
+        // Access is checked again on every round: it can be revoked in System
+        // Settings, and then the round trip has to lead to onboarding.
         guard environment.isAccessibilityTrusted else {
             Log.write("доступа Accessibility нет, показываем онбординг")
             onAccessibilityDenied()
             return
         }
 
-        // Без этой проверки защищённый ввод неотличим от пустого выделения:
-        // события не доставляются молча, счётчик буфера не двигается, и человек
-        // получает «ничего не выделено» там, где текст выделен.
+        // Without this check secure input is indistinguishable from an empty
+        // selection: events are dropped silently, the clipboard change count
+        // never moves, and the person is told nothing was selected while their
+        // text plainly is.
         guard !environment.isSecureInputActive else {
             Log.write("защищённый ввод включён, захват невозможен")
             notices.show(RoundTripError.secureInputActive)
@@ -107,14 +109,15 @@ public final class RoundTripController {
         let result = await capture.capture()
         switch result.outcome {
         case .nothingSelected:
-            // Сигнал сразу, а присмотр за буфером продолжается ещё полсекунды:
-            // быстрый отказ и защита от опоздавшей копии — разные сроки.
+            // The beep comes at once while the clipboard is watched for
+            // another half second: a quick refusal and the guard against a
+            // late copy are on different clocks.
             environment.beep()
             if settings.restoreClipboardAfterPaste {
-                // Присмотр держит круг открытым намеренно. Отпустить его в
-                // отдельную задачу значило бы разрешить следующему кругу
-                // начаться, пока этот ещё может тронуть буфер, и тогда чужой
-                // снимок лёг бы поверх свежего захвата.
+                // The guard deliberately holds the round open. Letting it go
+                // in a task of its own would allow the next round to start
+                // while this one can still touch the clipboard, and a stale
+                // snapshot would land on top of a fresh capture.
                 await capture.restoreIfCopyLandsLate(after: result)
             }
 
@@ -134,9 +137,10 @@ public final class RoundTripController {
         do {
             fixed = try await transform.transform(text)
         } catch {
-            // К этому месту выделение человека уже лежит в буфере обмена: его
-            // положил туда захват. Отказ модели без возврата снимка означал бы,
-            // что оборвавшаяся сеть молча съела содержимое буфера.
+            // By this point the person's selection is already in the
+            // clipboard: capture put it there. A failed model without a
+            // restore would mean a dropped connection quietly ate whatever the
+            // clipboard held.
             if settings.restoreClipboardAfterPaste {
                 clipboard.restore(snapshot)
             }

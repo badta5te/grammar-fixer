@@ -1,25 +1,26 @@
 import Foundation
 
-/// Какой моделью и по какому адресу исправлять текст.
+/// Which model to use and where to reach it.
 ///
-/// Настроек с интерфейсом ещё нет, они придут тикетом 06 вместе с Keychain.
-/// Пока провайдер описан файлом, а переменные окружения его перекрывают —
-/// так удобно пробовать другую модель, не трогая файл.
+/// There are no settings with a window yet; those arrive in ticket 06 together
+/// with the Keychain. For now the provider is described by a file, and the
+/// environment overrides it, which is convenient for trying another model
+/// without touching the file.
 ///
-/// Обратный порядок был бы ошибкой: приложение запускается через `open`, и
-/// переменные окружения оболочки до него не доходят. Файл здесь главный
-/// именно поэтому.
+/// The other order would be a mistake: the app is launched through `open`, and
+/// a shell's environment never reaches it. That is exactly why the file comes
+/// first.
 public struct ProviderConfiguration: Equatable, Sendable {
     public let model: String
     public let baseURL: URL
     public let apiKey: String
 
-    /// Расход токенов просят не все серверы понимают. Флаг позволяет выключить
-    /// просьбу заранее, если сервер на неё ругается.
+    /// Not every server understands a request for token usage. The flag turns
+    /// the request off up front for servers that complain about it.
     public let requestsUsage: Bool
 
-    /// Один OpenAI-совместимый путь покрывает всех, кроме Anthropic. Свой адрес
-    /// задаётся полем baseURL и работает без пресета.
+    /// One OpenAI-compatible path covers everyone except Anthropic. Any other
+    /// address goes in baseURL and works without a preset.
     static let presets = [
         "openai": "https://api.openai.com/v1",
         "deepseek": "https://api.deepseek.com/v1",
@@ -47,8 +48,8 @@ public struct ProviderConfiguration: Equatable, Sendable {
         let address = (environment["GRAMMARFIXER_BASE_URL"] ?? file.baseURL)?.trimmed
 
         guard !key.isEmpty else {
-            // Нет файла вовсе — это первый запуск, и человеку нужно другое
-            // указание, чем «допиши ключ в существующий файл».
+            // No file at all means a first launch, and that calls for
+            // different advice than "add a key to the file you already have".
             throw fileContents == nil
                 ? LLMError.noConfiguration(path: path)
                 : LLMError.noKey(path: path)
@@ -85,14 +86,15 @@ public struct ProviderConfiguration: Equatable, Sendable {
     }
 }
 
-/// Чтение настроек с диска. Файл перечитывается на каждом круге, чтобы смена
-/// модели действовала без перезапуска.
+/// Reading the configuration from disk. The file is re-read on every round so
+/// that switching models takes effect without a restart.
 public struct ProviderConfigurationFile: Sendable {
     public static let url = FileManager.default
         .homeDirectoryForCurrentUser
         .appending(path: ".config/grammar-fixer/config.json")
 
-    /// Путь для сообщений человеку: домашний каталог в них ни к чему.
+    /// The path as shown to a person: the home directory spelled out in full
+    /// helps nobody.
     public static var displayPath: String {
         url.path.replacingOccurrences(
             of: FileManager.default.homeDirectoryForCurrentUser.path,
@@ -102,10 +104,9 @@ public struct ProviderConfigurationFile: Sendable {
 
     public init() {}
 
-    /// Заготовка файла. Открывать пустоту бессмысленно, а объяснять формат
-    /// в сообщении об ошибке — значит заставлять человека его перепечатывать.
-    /// Неизвестные поля разбором игнорируются, поэтому подсказка живёт прямо
-    /// в файле.
+    /// Creates the file from a template. Opening emptiness is pointless, and
+    /// the shape of the file is easier to fill in than to retype from an error
+    /// message.
     @discardableResult
     public func createIfMissing() throws -> URL {
         guard !FileManager.default.fileExists(atPath: Self.url.path) else { return Self.url }
@@ -114,15 +115,15 @@ public struct ProviderConfigurationFile: Sendable {
             withIntermediateDirectories: true
         )
         try Self.template.write(to: Self.url, atomically: true, encoding: .utf8)
-        // Ключ лежит открытым файлом до тикета 06 с Keychain. Права — хотя бы
-        // не всем подряд.
+        // The key sits in a plain file until ticket 06 brings the Keychain.
+        // Permissions are at least not world-readable.
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: Self.url.path)
         return Self.url
     }
 
-    /// Подсказка живёт прямо в файле: неизвестные поля разбором игнорируются,
-    /// а объяснять формат в сообщении об ошибке — значит заставлять человека
-    /// его перепечатывать.
+    /// The hint lives in the file itself: unknown fields are ignored when the
+    /// file is parsed, so the explanation costs nothing and is where it is
+    /// needed.
     static let template = """
         {
           "_help": "provider: \(ProviderConfiguration.presets.keys.sorted().joined(separator: ", ")). \

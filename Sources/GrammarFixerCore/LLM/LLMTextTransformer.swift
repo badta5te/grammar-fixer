@@ -1,7 +1,8 @@
 import Foundation
 
-/// Заглушку из тикета 03 здесь заменяет настоящая модель. Шов тот же, круг не
-/// тронут: захват и вставка не знают, что между ними появилась сеть.
+/// The real model in place of ticket 03's placeholder. Same seam, and the round
+/// trip is untouched: capture and paste do not know a network appeared between
+/// them.
 @MainActor
 public struct LLMTextTransformer: TextTransforming {
     private let prompt: Prompt
@@ -21,9 +22,9 @@ public struct LLMTextTransformer: TextTransforming {
     }
 
     public func transform(_ text: String) async throws -> String {
-        // Настройки перечитываются на каждом круге: смена модели должна
-        // действовать без перезапуска приложения-агента, у которого и окна-то
-        // нет, чтобы заметить перезапуск.
+        // The configuration is re-read on every round: switching models has to
+        // take effect without restarting an agent app, which has no window in
+        // which a restart would even be visible.
         let configuration = try loadConfiguration()
         let client = makeClient(configuration)
         let started = Date()
@@ -34,14 +35,18 @@ public struct LLMTextTransformer: TextTransforming {
             switch event {
             case .delta(let piece): answer += piece
             case .usage(let value): usage = value
-            case .done: break
+            // There is deliberately no branch that stops here: `break` inside
+            // a switch ends the switch, not the loop, and would read as a stop
+            // that never happens. The client itself cuts the stream at [DONE].
+            case .done: continue
             }
         }
 
         let cleaned = ResponseSanitizer.clean(answer, original: text)
 
-        // Ни промпт, ни ответ, ни ключ в журнал не идут. Журнал лежит
-        // открытым файлом, а через приложение проходит чужая переписка.
+        // Neither the prompt, nor the answer, nor the key goes to the log. The
+        // log is a plain file, and other people's correspondence passes through
+        // this app.
         Log.write(String(
             format: "модель %@: %d → %d символов за %.0f мс, токены %@",
             configuration.model,

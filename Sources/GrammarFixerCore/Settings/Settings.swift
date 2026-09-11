@@ -1,9 +1,9 @@
 import Foundation
 
-/// Настройки круга. Читаются заново на каждом обращении, чтобы переключатель
-/// из меню действовал сразу и без перезапуска.
+/// The round trip's settings. Read afresh on every access so that a switch in
+/// the menu takes effect at once and without a restart.
 ///
-/// Хранилище — UserDefaults, поэтому то же самое переключается из терминала:
+/// The store is UserDefaults, so the same switches work from a terminal:
 ///
 ///     defaults write com.badta5te.GrammarFixer RestoreClipboardAfterPaste -bool false
 @MainActor
@@ -23,9 +23,9 @@ public final class Settings {
         ])
     }
 
-    /// Полным восстановление не бывает: обещанные и отложенные типы буфера
-    /// глубокой копии не поддаются, у них ещё нет данных. Поэтому выключатель
-    /// и существует — как честный запасной выход, а не как причуда.
+    /// Restoring is never complete: promised and lazy clipboard types cannot
+    /// be deep-copied because they have no data yet. That is why the switch
+    /// exists, as an honest way out rather than a quirk.
     public var restoreClipboardAfterPaste: Bool {
         get { defaults.bool(forKey: Self.restoreClipboardKey) }
         set { defaults.set(newValue, forKey: Self.restoreClipboardKey) }

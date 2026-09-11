@@ -1,9 +1,9 @@
 import XCTest
 @testable import GrammarFixerCore
 
-/// Настроек с интерфейсом ещё нет, они придут тикетом 06. Пока провайдер
-/// описан файлом, и разбор этого файла — единственное место, где пользователь
-/// может ошибиться молча.
+/// There are no settings with a window yet; those arrive in ticket 06. For now
+/// the provider is described by a file, and parsing that file is the one place
+/// where a person can go wrong silently.
 final class ProviderConfigurationTests: XCTestCase {
     private let path = "~/.config/grammar-fixer/config.json"
 
@@ -43,8 +43,8 @@ final class ProviderConfigurationTests: XCTestCase {
         XCTAssertEqual(config.model, "other")
     }
 
-    /// Первый запуск после этого тикета — это запуск без файла. Он обязан
-    /// объяснить, что делать, а не упасть сетевой ошибкой.
+    /// The first launch after this ticket is a launch with no file. It has to
+    /// explain what to do rather than fail with a network error.
     func testMissingFileNamesItself() {
         XCTAssertThrowsError(try make(nil)) { error in
             XCTAssertEqual(error as? LLMError, .noConfiguration(path: path))
@@ -92,8 +92,8 @@ final class ProviderConfigurationTests: XCTestCase {
     }
 }
 
-/// Заготовку файла никто не проверяет глазами, а неверная заготовка встречает
-/// человека ровно на первом запуске.
+/// Nobody eyeballs the template, and a broken template is what greets a person
+/// on their very first launch.
 extension ProviderConfigurationTests {
     func testTheTemplateIsValidAndOnlyMissesTheKey() {
         XCTAssertThrowsError(

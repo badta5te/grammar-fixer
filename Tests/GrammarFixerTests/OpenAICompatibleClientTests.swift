@@ -1,8 +1,9 @@
 import XCTest
 @testable import GrammarFixerCore
 
-/// Транспорт подменяется целиком: живой запрос к провайдеру в тестах — это
-/// деньги, сеть и чужая доступность, а проверять надо своё поведение.
+/// The transport is replaced whole: a live request to a provider costs money,
+/// needs a network and depends on somebody else's uptime, while what is under
+/// test is our own behaviour.
 actor FakeTransport: HTTPLineStreaming {
     struct Answer {
         var status = 200
@@ -27,8 +28,8 @@ actor FakeTransport: HTTPLineStreaming {
         })
     }
 
-    /// Разбор тела остаётся снаружи: словарь с Any через границу актора не
-    /// проходит, а Data проходит.
+    /// Parsing the body stays outside: a dictionary of Any does not cross an
+    /// actor boundary, while Data does.
     func body(ofRequest index: Int) -> Data? { sent[index].httpBody }
 }
 
@@ -76,8 +77,9 @@ final class OpenAICompatibleClientTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer secret-key")
     }
 
-    /// Промпт уходит одним пользовательским сообщением. Системного нет
-    /// намеренно: якорь живёт в конце шаблона и при разрезании теряется.
+    /// The prompt goes out as a single user message. There is deliberately no
+    /// system message: the anchor lives at the end of the template and is lost
+    /// if the template is split.
     func testPromptIsSentAsASingleUserMessage() async throws {
         let (client, transport) = makeClient([.init(lines: ["data: [DONE]"])])
         _ = try await collect(client)
@@ -99,8 +101,9 @@ final class OpenAICompatibleClientTests: XCTestCase {
         XCTAssertEqual(options?["include_usage"] as? Bool, true)
     }
 
-    /// Просьбу о расходе токенов понимают не все OpenAI-совместимые серверы.
-    /// Отказ из-за неё не должен оставлять человека без исправления.
+    /// Not every OpenAI-compatible server understands the request for token
+    /// usage. A refusal caused by it must not leave the person without a
+    /// correction.
     func testRejectedUsageOptionIsRetriedOnceWithoutIt() async throws {
         let (client, transport) = makeClient([
             .init(status: 400, lines: [#"{"error":{"message":"unknown field stream_options"}}"#]),

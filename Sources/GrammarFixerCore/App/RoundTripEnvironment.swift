@@ -1,9 +1,9 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Всё, что круг спрашивает у системы. Отдельный шов нужен не ради чистоты:
-/// без него ни одна ветка выхода из круга не проверяется тестом, а именно
-/// ветки выхода — то, что ломается незаметно.
+/// Everything the round trip asks the system. The seam is not here for
+/// tidiness: without it not one of the ways out of the round is covered by a
+/// test, and the ways out are exactly what breaks unnoticed.
 @MainActor
 public protocol RoundTripEnvironment {
     var isAccessibilityTrusted: Bool { get }
@@ -21,8 +21,8 @@ public struct SystemEnvironment: RoundTripEnvironment {
     public func beep() { NSSound.beep() }
 }
 
-/// Показ сообщения человеку. Панель за этим швом рисует настоящее окно, а тест
-/// смотрит только на то, что сообщение вообще было.
+/// Showing a message to a person. The panel behind this seam draws a real
+/// window; a test only looks at whether a message happened at all.
 @MainActor
 public protocol NoticePresenting {
     func show(_ error: any UserFacingError)

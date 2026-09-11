@@ -1,9 +1,9 @@
 import XCTest
 @testable import GrammarFixerCore
 
-/// Разбор строки потока вынесен в чистую функцию ровно затем, чтобы все формы,
-/// в которых OpenAI-совместимые серверы расходятся, проверялись таблицей, а не
-/// живым запросом к провайдеру.
+/// Parsing a stream line is a pure function for exactly one reason: so that
+/// every shape OpenAI-compatible servers diverge in can be checked by a table
+/// rather than by a live request to a provider.
 final class StreamChunkTests: XCTestCase {
     private func event(_ line: String) throws -> StreamEvent? {
         try StreamChunk.event(from: line)
@@ -14,7 +14,7 @@ final class StreamChunkTests: XCTestCase {
         XCTAssertEqual(try event(line), .delta("Привет"))
     }
 
-    /// Пробел после двоеточия ставят не все.
+    /// Not everyone puts a space after the colon.
     func testDataWithoutSpaceIsRead() throws {
         let line = #"data:{"choices":[{"delta":{"content":"а"}}]}"#
         XCTAssertEqual(try event(line), .delta("а"))
@@ -32,8 +32,8 @@ final class StreamChunkTests: XCTestCase {
         XCTAssertNil(try event("id: 42"))
     }
 
-    /// Последний кусок с расходом токенов приходит с пустым списком choices.
-    /// Обращение к choices[0] здесь уронило бы приложение на ровном месте.
+    /// The final chunk carrying token usage arrives with an empty list of
+    /// choices. Reaching for choices[0] here would crash the app for nothing.
     func testUsageChunkHasNoChoices() throws {
         let line = #"data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"#
         XCTAssertEqual(try event(line), .usage(TokenUsage(promptTokens: 10, completionTokens: 5)))
@@ -43,7 +43,8 @@ final class StreamChunkTests: XCTestCase {
         XCTAssertNil(try event(#"data: {"choices":[{"delta":{},"finish_reason":"stop"}]}"#))
     }
 
-    /// Рассуждающие модели шлют отдельное поле, которое в текст не идёт.
+    /// Reasoning models send a separate field that does not belong in the
+    /// text.
     func testReasoningContentIsNotMistakenForTheAnswer() throws {
         let line = #"data: {"choices":[{"delta":{"reasoning_content":"думаю"}}]}"#
         XCTAssertNil(try event(line))

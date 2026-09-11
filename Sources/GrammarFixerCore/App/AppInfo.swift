@@ -1,8 +1,9 @@
 import Foundation
 
-/// Значения из Info.plist. Когда бинарник запущен вне бандла, например при
-/// отладке, plist недоступен — тогда подставляется fallbackVersion, чтобы
-/// интерфейс не показывал пустоту. Тест следит, чтобы она не разошлась с plist.
+/// Values from Info.plist. When the binary runs outside a bundle, during
+/// debugging for instance, there is no plist, and fallbackVersion stands in so
+/// the interface shows something rather than nothing. A test keeps the two from
+/// drifting apart.
 public enum AppInfo {
     public static let bundleIdentifier = "com.badta5te.GrammarFixer"
     public static let name = "GrammarFixer"

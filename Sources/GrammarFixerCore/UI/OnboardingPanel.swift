@@ -1,12 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// Экран выдачи доступа. Объясняет словами, зачем доступ нужен, а не просто
-/// просит его: Accessibility звучит как «читать всё подряд», и человек вправе
-/// понимать, за что платит.
+/// The access screen. It explains in words why the access is needed instead of
+/// merely asking for it: Accessibility sounds like "read everything", and
+/// somebody is entitled to understand what they are paying with.
 ///
-/// Система своё окно с предложением показывает только один раз за установку,
-/// поэтому кнопка в системные настройки обязательна.
+/// The system shows its own offer only once per installation, so a button into
+/// System Settings is mandatory.
 @MainActor
 public final class OnboardingPanel: NSObject, NSWindowDelegate {
     private var panel: FloatingPanel?
@@ -31,14 +31,16 @@ public final class OnboardingPanel: NSObject, NSWindowDelegate {
         self.panel = panel
 
         state.onOpenSettings = {
-            // Своё окно система показывает один раз за установку, дальше оно
-            // молчит. Просим и его тоже: если оно появится, путь короче.
+            // The system shows its own window once per installation and stays
+            // quiet afterwards. We ask for it anyway: if it appears, the way
+            // through is shorter.
             Accessibility.requestAccess()
             Accessibility.openSystemSettings()
         }
         state.onClose = { [weak self] in self?.dismiss() }
 
-        // Система не уведомляет о выдаче доступа, поэтому состояние опрашивается.
+        // The system sends no notification when access is granted, so the
+        // state is polled.
         pollTask = Task { @MainActor in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
@@ -51,9 +53,9 @@ public final class OnboardingPanel: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Крестик в заголовке закрывает окно мимо наших кнопок, и опрос доступа
-    /// продолжал бы работать в пустоту. Уборка у обоих путей одна, иначе они
-    /// со временем разойдутся.
+    /// The close button in the title bar dismisses the window past our own
+    /// buttons, and the polling would go on working into the void. Both paths
+    /// share one cleanup, or they drift apart over time.
     public func windowWillClose(_ notification: Notification) {
         stopPolling()
         panel = nil

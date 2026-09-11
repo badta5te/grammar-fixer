@@ -1,10 +1,9 @@
 import XCTest
 @testable import GrammarFixerCore
 
-/// Шаблон промпта хранится целиком и не разрезается на системную и
-/// пользовательскую части. Разрезание теряет завершающий якорь, а якорь делает
-/// настоящую работу: именно он подавляет «Here is the corrected text:» у
-/// слабых моделей.
+/// The prompt template is kept whole and never split into a system and a user
+/// half. Splitting loses the closing anchor, and the anchor does real work: it
+/// is what suppresses "Here is the corrected text:" in weaker models.
 final class PromptTests: XCTestCase {
     func testSelectionIsSubstituted() {
         let rendered = Prompt.default.render(selection: "привет как дела")
@@ -23,7 +22,7 @@ final class PromptTests: XCTestCase {
         XCTAssertTrue(text.contains("emojis"))
     }
 
-    /// Фигурные скобки в тексте пользователя не должны обращаться в подстановку.
+    /// Braces in the person's own text must not turn into a substitution.
     func testBracesInTheSelectionAreNotTreatedAsPlaceholders() {
         let rendered = Prompt.default.render(selection: "код {selection} внутри")
         XCTAssertTrue(rendered.contains("код {selection} внутри"))

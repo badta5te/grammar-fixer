@@ -1,11 +1,12 @@
 import AppKit
 
-/// Иконка в меню-баре и её меню.
+/// The menu bar icon and its menu.
 ///
-/// Привязка к главному потоку объявлена явно. Сейчас контроллер создаётся из
-/// applicationDidFinishLaunching, который и так на главном потоке, но полагаться
-/// на дисциплину вызывающего нельзя: позже сюда придут обновления из сетевых
-/// ответов, и без аннотации это стало бы гонкой, которую компилятор не поймает.
+/// Main-thread isolation is stated explicitly. Today the controller is built
+/// from applicationDidFinishLaunching, which is on the main thread anyway, but
+/// the caller's discipline is not something to lean on: updates from network
+/// responses will arrive here later, and without the annotation that would
+/// become a race the compiler cannot catch.
 @MainActor
 final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
@@ -61,17 +62,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         onboarding.target = self
         menu.addItem(onboarding)
 
-        // Провайдер и ключ пока живут файлом: окно настроек придёт тикетом 06.
-        // Без этого пункта человеку остаётся искать путь в тексте ошибки.
+        // The provider and the key live in a file for now; a settings window
+        // arrives in ticket 06. Without this item the only way to the file is
+        // a path buried in an error message.
         let provider = NSMenuItem(title: "Provider and Key…", action: #selector(openProviderFile), keyEquivalent: "")
         provider.target = self
         menu.addItem(provider)
 
         menu.addItem(.separator())
 
-        // Настройки живут здесь до появления отдельного окна настроек. То же
-        // самое переключается из терминала через defaults write, потому что
-        // меню-бар у пользователя может быть скрыт.
+        // Settings live here until a window of their own exists. The same
+        // switches are available from a terminal through defaults write,
+        // because the menu bar itself may be hidden.
         restoreClipboardItem = addToggle(to: menu, title: "Restore Clipboard After Paste", action: #selector(toggleRestoreClipboard))
         pasteByTypingItem = addToggle(to: menu, title: "Paste by Typing", action: #selector(togglePasteByTyping))
         writeLogItem = addToggle(to: menu, title: "Write Log", action: #selector(toggleWriteLog))
@@ -98,8 +100,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return item
     }
 
-    /// Галочки проставляются при открытии меню, а не при создании: те же
-    /// настройки меняются из терминала, и меню не должно врать.
+    /// Check marks are set when the menu opens rather than when it is built:
+    /// the same settings change from a terminal, and the menu must not lie.
     func menuNeedsUpdate(_ menu: NSMenu) {
         restoreClipboardItem?.state = settings.restoreClipboardAfterPaste ? .on : .off
         pasteByTypingItem?.state = settings.pasteMethod == .typing ? .on : .off
@@ -126,9 +128,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openLog() {
-        // Журнала может не быть вовсе: его выключили, или он только что был
-        // обрезан. Открыть несуществующий файл — это ничего не открыть и
-        // ничего не сказать.
+        // There may be no log at all: it was turned off, or it was just
+        // trimmed away. Opening a file that does not exist opens nothing and
+        // says nothing.
         guard FileManager.default.fileExists(atPath: Log.fileURL.path) else {
             notices.show(Notice(
                 title: "No log yet",

@@ -1,16 +1,17 @@
 import Foundation
 
-/// Клиент к `/chat/completions`. Один путь покрывает OpenAI, DeepSeek,
-/// OpenRouter, Groq и локальные серверы — расходится у них не протокол, а
-/// мелочи, и мелочи разобраны здесь.
+/// A client for `/chat/completions`. One path covers OpenAI, DeepSeek,
+/// OpenRouter, Groq and local servers. What differs between them is not the
+/// protocol but the small print, and the small print is handled here.
 public struct OpenAICompatibleClient: LLMClient {
     private let configuration: ProviderConfiguration
     private let transport: any HTTPLineStreaming
     private let timeout: TimeInterval
 
-    /// Тридцати секунд хватает любой модели на пару абзацев. Шестьдесят секунд
-    /// по умолчанию от URLSession здесь не годятся: круг держит хоткей занятым,
-    /// и минута молчания неотличима от поломки.
+    /// Thirty seconds is enough for any model to write a couple of paragraphs.
+    /// URLSession's default of sixty will not do: the round trip holds the
+    /// shortcut busy, and a minute of silence is indistinguishable from a
+    /// broken app.
     public init(
         configuration: ProviderConfiguration,
         transport: any HTTPLineStreaming,
@@ -29,8 +30,8 @@ public struct OpenAICompatibleClient: LLMClient {
                     for try await line in response.lines {
                         guard let event = try StreamChunk.event(from: line) else { continue }
                         continuation.yield(event)
-                        // После [DONE] сервер иногда добавляет ещё строки.
-                        // Читать их — значит дописывать в текст лишнее.
+                        // Some servers add more lines after [DONE]. Reading
+                        // them means appending junk to the person's text.
                         if event == .done { break }
                     }
                     continuation.finish()
@@ -45,9 +46,10 @@ public struct OpenAICompatibleClient: LLMClient {
     private func open(prompt: String) async throws -> HTTPStream {
         var response = try await transport.send(request(prompt: prompt, includeUsage: configuration.requestsUsage))
 
-        // Просьбу о расходе токенов понимают не все серверы, и отвечают на неё
-        // отказом всего запроса. Один повтор без неё дешевле, чем оставить
-        // человека без исправления ради будущего счётчика расходов.
+        // Not every server understands the request for token usage, and some
+        // refuse the whole call because of it. One retry without it is cheaper
+        // than leaving the person without a correction for the sake of a
+        // spending counter that does not exist yet.
         if response.status == 400 && configuration.requestsUsage {
             response = try await transport.send(request(prompt: prompt, includeUsage: false))
         }
@@ -80,8 +82,8 @@ public struct OpenAICompatibleClient: LLMClient {
         return request
     }
 
-    /// Тело ответа с ошибкой. Без него человек получает один код и ничего,
-    /// что можно исправить.
+    /// The body of a failed response. Without it the person gets a status code
+    /// and nothing they could fix.
     private func body(of response: HTTPStream) async -> String {
         var collected: [String] = []
         var length = 0
@@ -89,11 +91,13 @@ public struct OpenAICompatibleClient: LLMClient {
             for try await line in response.lines {
                 collected.append(line)
                 length += line.count
-                // Тело ошибки бывает и потоком. Читать его целиком незачем.
+                // An error body can be a stream too. There is no reason to
+                // read all of it.
                 if collected.count >= 20 || length >= 2000 { break }
             }
         } catch {
-            // Оборвавшееся тело ошибки — не повод потерять сам код ответа.
+            // An error body that breaks off is no reason to lose the status
+            // code itself.
         }
         return collected.joined(separator: "\n")
     }

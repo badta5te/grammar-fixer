@@ -1,9 +1,9 @@
 import Foundation
 
-/// Промпт хранится одним куском и не разрезается на системную и
-/// пользовательскую части. Разрезание теряет завершающий якорь `Rewritten
-/// text:`, а якорь делает настоящую работу: он подавляет «Here is the
-/// corrected text:» у слабых моделей ещё до всякой санитизации.
+/// The prompt is kept whole and never split into a system and a user half.
+/// Splitting loses the closing anchor `Rewritten text:`, and the anchor does
+/// real work: it suppresses "Here is the corrected text:" in weaker models
+/// before any sanitizing happens.
 public struct Prompt: Sendable {
     public static let placeholder = "{selection}"
 
@@ -13,8 +13,8 @@ public struct Prompt: Sendable {
         self.template = template
     }
 
-    /// Тот же промпт, что работал в Raycast. Менять его без нужды не стоит:
-    /// формулировки здесь проверены на настоящих текстах, а не подобраны.
+    /// The same prompt that worked in Raycast. Not worth changing without a
+    /// reason: the wording here was proven on real texts, not guessed at.
     public static let `default` = Prompt(template: """
         Act as a spelling corrector and improver. Reply to each message only with the rewritten text
 
