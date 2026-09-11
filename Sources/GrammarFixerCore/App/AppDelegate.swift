@@ -49,7 +49,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let roundTrip = RoundTripController(
             settings: settings,
             clipboard: clipboard,
-            capture: TextCapture(clipboard: clipboard, keyboard: keyboard),
+            // The system is asked for the selection before the clipboard is
+            // taken over. Where an app answers, the round never touches the
+            // clipboard at all.
+            capture: TextCapture(
+                clipboard: clipboard,
+                keyboard: keyboard,
+                reader: AccessibilitySelection()
+            ),
             paster: TextPaster(clipboard: clipboard, keyboard: keyboard, focus: FocusRestorer()),
             transform: LLMTextTransformer(
                 loadConfiguration: { try store.configuration() },

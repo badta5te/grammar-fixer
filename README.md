@@ -17,10 +17,13 @@ The prototype findings the round trip rests on are in
 
 ## How it works
 
-Select text in any app and press the shortcut. The app sends a synthetic `⌘C`,
-waits for a confirmed change to the clipboard, and sends the text to a model.
-The answer appears in the panel, and `⏎` puts it back where it came from with a
-synthetic `⌘V`. The clipboard is restored afterwards with every type it held.
+Select text in any app and press the shortcut. The app first asks the system
+what is selected; where the app in front answers, the clipboard is not involved
+at all. Where it says nothing, which is common, a synthetic `⌘C` goes out and
+the app waits for a confirmed change to the clipboard. Either way the text goes
+to a model, the answer appears in the panel, and `⏎` puts it back where it came
+from with a synthetic `⌘V`. A clipboard that was taken over is restored
+afterwards with every type it held.
 
 There is not one silent failure left. Nothing selected, or a selection that did
 not arrive as text: a beep, and nothing more. A window would explain to someone
@@ -224,6 +227,8 @@ defaults write com.badta5te.GrammarFixer MonthlyLimit -float 5
   anybody who finds that unacceptable.
 - `PasteMethod` — `clipboard` pastes with `⌘V`, `typing` types the text out as
   events and never touches the clipboard.
+- `ReadSelectionDirectly` — whether to ask the system for the selection before
+  copying it.
 - `WriteLog` — the round's log in `~/Library/Logs/GrammarFixer.log`. What was
   selected never reaches it, only how long it was.
 - `Theme` — `system`, `light` or `dark`.
@@ -237,6 +242,31 @@ defaults write com.badta5te.GrammarFixer MonthlyLimit -float 5
 - `Provider`, `Model.<provider>`, `BaseURL`, `RequestUsage`, `Reasoning` — the
   same things as in the window. There is no key among them: it is in the
   Keychain.
+
+### Reading the selection instead of copying it
+
+The accessibility API can hand over the selected text directly, and where that
+works the round never touches the clipboard: nothing is overwritten, nothing
+has to be put back, and nothing of yours can be lost to a correction. Support
+is uneven — anything built on web technology often says nothing — so it is an
+attempt and never a requirement. Silence costs one call, and the synthetic `⌘C`
+that has always worked runs as before. It needs no new permission: the same
+Accessibility access the round trip already requires covers it.
+
+A blank answer is treated as no answer. An app that supports being asked and
+one that returns an empty string are indistinguishable from here, so "nothing
+is selected" stays the verdict of the clipboard's change count, which has never
+been wrong about it.
+
+Reading the selection and typing the answer back, with `Paste by typing` on, is
+the one round that touches the clipboard at neither end. Pasting with `⌘V`
+writes to it whatever way the selection arrived, and that round still puts back
+what was there.
+
+The switch is there because an app can answer with something other than what
+you selected — the whole field, or a selection from a moment ago. Silently
+correcting the wrong text is worse than overwriting a clipboard, so turning it
+off falls back to copying everywhere.
 
 ### The shortcut
 

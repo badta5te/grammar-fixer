@@ -1,6 +1,7 @@
 import Foundation
 
-/// Capturing the selection with a synthetic ⌘C.
+/// Capturing the selection: from the system where that works, and with a
+/// synthetic ⌘C everywhere else.
 ///
 /// Failure is detected by the clipboard's change count, not by elapsed time.
 /// Without that, "nothing was selected" would quietly mean correcting
@@ -23,10 +24,16 @@ public final class TextCapture {
         public let outcome: Outcome
         public let snapshot: ClipboardSnapshot
         public let changeCountBefore: Int
+        /// Whether capturing went through the clipboard. It did not when the
+        /// system handed the selection over, and then there is nothing of ours
+        /// in the clipboard to put back afterwards — putting the snapshot back
+        /// would be a write to a clipboard this round never touched.
+        public let touchedClipboard: Bool
     }
 
     private let clipboard: Clipboard
     private let keyboard: SyntheticKeyboard
+    private let reader: (any SelectionReading)?
     private let pollInterval: TimeInterval
     private let timeout: TimeInterval
     private let lateCopyWindow: TimeInterval
@@ -48,6 +55,9 @@ public final class TextCapture {
     public init(
         clipboard: Clipboard,
         keyboard: SyntheticKeyboard,
+        /// The system, asked before the clipboard. Left out means copying, as
+        /// it always did.
+        reader: (any SelectionReading)? = nil,
         pollInterval: TimeInterval = 0.01,
         timeout: TimeInterval = 0.5,
         lateCopyWindow: TimeInterval = 0.5,
@@ -55,16 +65,37 @@ public final class TextCapture {
     ) {
         self.clipboard = clipboard
         self.keyboard = keyboard
+        self.reader = reader
         self.pollInterval = pollInterval
         self.timeout = timeout
         self.lateCopyWindow = lateCopyWindow
         self.sleep = sleep
     }
 
-    public func capture() async -> Result {
+    /// - Parameter readingDirectly: whether to ask the system for the
+    ///   selection first. Off is for anybody whose app answers with something
+    ///   other than what is selected: correcting the wrong text is worse than
+    ///   touching the clipboard.
+    public func capture(readingDirectly: Bool = true) async -> Result {
+        // Taken even when the system answers: pasting the correction back goes
+        // through the clipboard, and an empty snapshot put back after that
+        // would wipe whatever somebody had in it.
         let snapshot = clipboard.snapshot()
         let before = clipboard.changeCount
         Log.write("clipboard snapshot: items \(snapshot.items.count), types \(snapshot.typeCount)")
+
+        // A blank answer cannot be told apart from an app that does not
+        // support being asked, so it is never allowed to mean "nothing is
+        // selected". That verdict belongs to the change count, which is the
+        // one thing here that has never been wrong.
+        if readingDirectly, let text = reader?.selectedText(), !text.trimmed.isEmpty {
+            return Result(
+                outcome: .captured(text),
+                snapshot: snapshot,
+                changeCountBefore: before,
+                touchedClipboard: false
+            )
+        }
 
         keyboard.copy()
 
@@ -75,14 +106,29 @@ public final class TextCapture {
 
             Log.write(String(format: "clipboard changed in %.0f ms", Date().timeIntervalSince(start) * 1000))
             guard let text = clipboard.readText(), !text.isEmpty else {
-                return Result(outcome: .unsupportedSelection, snapshot: snapshot, changeCountBefore: before)
+                return Result(
+                    outcome: .unsupportedSelection,
+                    snapshot: snapshot,
+                    changeCountBefore: before,
+                    touchedClipboard: true
+                )
             }
             Log.write("captured characters: \(text.count)")
-            return Result(outcome: .captured(text), snapshot: snapshot, changeCountBefore: before)
+            return Result(
+                outcome: .captured(text),
+                snapshot: snapshot,
+                changeCountBefore: before,
+                touchedClipboard: true
+            )
         }
 
         Log.write("the clipboard count did not move in \(Int(timeout * 1000)) ms, so nothing was selected")
-        return Result(outcome: .nothingSelected, snapshot: snapshot, changeCountBefore: before)
+        return Result(
+            outcome: .nothingSelected,
+            snapshot: snapshot,
+            changeCountBefore: before,
+            touchedClipboard: true
+        )
     }
 
     /// Watches the clipboard after a refusal and puts the contents back if ⌘C

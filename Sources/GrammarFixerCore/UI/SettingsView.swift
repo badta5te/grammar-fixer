@@ -501,7 +501,16 @@ struct SettingsView: View {
     }
 
     private var pasteSection: some View {
-        Section("Pasting") {
+        Section("Capture and pasting") {
+            Toggle("Read the selection from the app when it can", isOn: $state.readsSelectionDirectly)
+                .onChange(of: state.readsSelectionDirectly) { state.readsSelectionDirectlyChanged() }
+            Text("Where an app answers, your selection never goes through the clipboard at all. "
+                + "Many do not answer, and those are copied from as before. Turn this off if an app "
+                + "hands over something other than what you selected.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
             Toggle("Restore the clipboard after pasting", isOn: $state.restoreClipboard)
                 .onChange(of: state.restoreClipboard) { state.restoreClipboardChanged() }
             Text("Restoring is never complete: promised and lazy clipboard types cannot be copied "

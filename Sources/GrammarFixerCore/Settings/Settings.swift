@@ -20,6 +20,7 @@ public final class Settings {
     public static let promptKey = "PromptTemplate"
     public static let limitKey = "MonthlyLimit"
     public static let pricesKey = "Prices"
+    public static let readSelectionKey = "ReadSelectionDirectly"
     public static let shortcutKeyCodeKey = "ShortcutKeyCode"
     public static let shortcutModifiersKey = "ShortcutModifiers"
 
@@ -38,6 +39,7 @@ public final class Settings {
             Self.requestUsageKey: true,
             Self.reasoningKey: ProviderConfiguration.Reasoning.off.rawValue,
             Self.limitKey: Budget.default,
+            Self.readSelectionKey: true,
             Self.shortcutKeyCodeKey: Int(Shortcut.default.keyCode),
             Self.shortcutModifiersKey: Shortcut.default.modifiers.rawValue,
         ])
@@ -60,6 +62,17 @@ public final class Settings {
     public var restoreClipboardAfterPaste: Bool {
         get { defaults.bool(forKey: Self.restoreClipboardKey) }
         set { defaults.set(newValue, forKey: Self.restoreClipboardKey) }
+    }
+
+    /// Whether to ask the system for the selection before copying it.
+    ///
+    /// On, because where it works the clipboard is not touched at all. Off is
+    /// for anybody whose app answers with something other than what is
+    /// selected — the whole field, or a selection from a moment ago: silently
+    /// correcting the wrong text is worse than overwriting a clipboard.
+    public var readsSelectionDirectly: Bool {
+        get { defaults.bool(forKey: Self.readSelectionKey) }
+        set { defaults.set(newValue, forKey: Self.readSelectionKey) }
     }
 
     public var pasteMethod: PasteMethod {

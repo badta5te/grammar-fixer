@@ -93,6 +93,7 @@ public final class SettingsFormState {
     var requestsUsage: Bool
     var reasoning: ProviderConfiguration.Reasoning
     var theme: Theme
+    var readsSelectionDirectly: Bool
     var restoreClipboard: Bool
     var pasteByTyping: Bool
     var promptTemplate: String
@@ -146,6 +147,7 @@ public final class SettingsFormState {
         requestsUsage = settings.requestsUsage
         reasoning = settings.reasoning
         theme = settings.theme
+        readsSelectionDirectly = settings.readsSelectionDirectly
         restoreClipboard = settings.restoreClipboardAfterPaste
         pasteByTyping = settings.pasteMethod == .typing
         promptTemplate = settings.promptTemplate
@@ -410,6 +412,11 @@ public final class SettingsFormState {
         // with it instead of waiting to be reopened.
         theme.apply()
         Log.write("theme: \(theme.rawValue)")
+    }
+
+    func readsSelectionDirectlyChanged() {
+        settings.readsSelectionDirectly = readsSelectionDirectly
+        Log.write("read the selection through the system: \(readsSelectionDirectly)")
     }
 
     func restoreClipboardChanged() { settings.restoreClipboardAfterPaste = restoreClipboard }

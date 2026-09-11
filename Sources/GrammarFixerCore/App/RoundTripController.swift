@@ -90,7 +90,7 @@ public final class RoundTripController {
             return
         }
 
-        let result = await capture.capture()
+        let result = await capture.capture(readingDirectly: settings.readsSelectionDirectly)
         switch result.outcome {
         case .nothingSelected:
             // The beep comes at once while the clipboard is watched for
@@ -117,13 +117,27 @@ public final class RoundTripController {
             }
 
         case .captured(let text):
-            await correct(text, in: sourceApp, snapshot: result.snapshot)
+            await correct(
+                text,
+                in: sourceApp,
+                snapshot: result.snapshot,
+                clipboardIsOurs: result.touchedClipboard
+            )
         }
     }
 
     /// The correction is shown before it goes anywhere. Nothing is pasted on
     /// its own any more: the round ends where the person decides it ends.
-    private func correct(_ text: String, in sourceApp: NSRunningApplication, snapshot: ClipboardSnapshot) async {
+    /// - Parameter clipboardIsOurs: whether capturing wrote to the clipboard
+    ///   at all. It did not when the system handed the selection over, and
+    ///   then there is nothing of ours in there to put back: restoring would
+    ///   be this round writing to a clipboard it never touched.
+    private func correct(
+        _ text: String,
+        in sourceApp: NSRunningApplication,
+        snapshot: ClipboardSnapshot,
+        clipboardIsOurs: Bool
+    ) async {
         let session = CorrectionSession(
             source: text,
             produce: { [transform] in transform.stream($0) },
@@ -149,7 +163,11 @@ public final class RoundTripController {
             // the panel stood open is lost either way.
             let mayRestore = settings.restoreClipboardAfterPaste
                 && (settings.pasteMethod == .clipboard
-                    || clipboardStillHoldsCapture(text, since: changeCountAfterCapture))
+                    || clipboardStillHoldsCapture(
+                        text,
+                        since: changeCountAfterCapture,
+                        ours: clipboardIsOurs
+                    ))
             let outcome = await paster.paste(
                 fixed,
                 into: sourceApp,
@@ -172,7 +190,8 @@ public final class RoundTripController {
             restoreCapturedSelection(
                 snapshot,
                 capturedText: text,
-                unlessChangedSince: changeCountAfterCapture
+                unlessChangedSince: changeCountAfterCapture,
+                ours: clipboardIsOurs
             )
         }
     }
@@ -191,10 +210,11 @@ public final class RoundTripController {
     private func restoreCapturedSelection(
         _ snapshot: ClipboardSnapshot,
         capturedText: String,
-        unlessChangedSince changeCount: Int
+        unlessChangedSince changeCount: Int,
+        ours: Bool
     ) {
         guard settings.restoreClipboardAfterPaste else { return }
-        guard clipboardStillHoldsCapture(capturedText, since: changeCount) else {
+        guard clipboardStillHoldsCapture(capturedText, since: changeCount, ours: ours) else {
             Log.write("the clipboard holds somebody else's copy, so the snapshot stays where it is")
             return
         }
@@ -205,7 +225,16 @@ public final class RoundTripController {
     /// has not moved since the capture, or what is in it is still the captured
     /// selection: counting changes alone is too strict, because a terminal with
     /// copy-on-select moves the count again right after our own ⌘C.
-    private func clipboardStillHoldsCapture(_ capturedText: String, since changeCount: Int) -> Bool {
-        clipboard.changeCount == changeCount || clipboard.readText() == capturedText
+    private func clipboardStillHoldsCapture(
+        _ capturedText: String,
+        since changeCount: Int,
+        ours: Bool
+    ) -> Bool {
+        // A selection the system handed over never went through the clipboard,
+        // so there is nothing of this round's in there. Putting the snapshot
+        // back would be a write — and the whole worth of reading the selection
+        // directly is that the clipboard is left exactly as it was.
+        guard ours else { return false }
+        return clipboard.changeCount == changeCount || clipboard.readText() == capturedText
     }
 }

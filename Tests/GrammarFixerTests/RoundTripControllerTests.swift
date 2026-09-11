@@ -16,6 +16,7 @@ final class RoundTripControllerTests: XCTestCase {
     private var transform: FakeTransform!
     private var results: FakeResults!
     private var settings: Settings!
+    private var reader: FakeSelectionReader!
     private var deniedShown = 0
 
     override func setUp() async throws {
@@ -29,9 +30,11 @@ final class RoundTripControllerTests: XCTestCase {
         notices = FakeNotices()
         transform = FakeTransform(recorder: recorder)
         results = FakeResults(recorder: recorder)
+        reader = FakeSelectionReader(recorder: recorder)
         settings = Settings(defaults: UserDefaults(suiteName: "RoundTripControllerTests")!)
         settings.restoreClipboardAfterPaste = true
         settings.pasteMethod = .clipboard
+        settings.readsSelectionDirectly = true
         deniedShown = 0
 
         // Capture succeeds: on the third polling tick the clipboard change
@@ -48,6 +51,7 @@ final class RoundTripControllerTests: XCTestCase {
             capture: TextCapture(
                 clipboard: clipboard,
                 keyboard: keyboard,
+                reader: reader,
                 pollInterval: 0.001,
                 timeout: 0.05,
                 lateCopyWindow: 0.01,
@@ -273,5 +277,76 @@ final class RoundTripControllerTests: XCTestCase {
         XCTAssertEqual(environment.beeps, 1)
         XCTAssertFalse(recorder.events.contains("write"))
         XCTAssertTrue(transform.received.isEmpty)
+    }
+}
+
+/// A round where the system handed the selection over. The point of asking it
+/// is that the clipboard is then left exactly as it was, so what these check
+/// is mostly what does *not* happen.
+extension RoundTripControllerTests {
+    func testAReadSelectionIsTheTextThatGoesToTheModel() async {
+        reader.selection = "текст из системы"
+        makeController().run()
+        await settle()
+
+        XCTAssertEqual(transform.received, ["текст из системы"])
+        XCTAssertFalse(recorder.events.contains("copy"))
+    }
+
+    /// Closed panel, nothing pasted: the clipboard was never read for text,
+    /// never written and never put back.
+    func testAClosedPanelAfterAReadSelectionLeavesTheClipboardAlone() async {
+        reader.selection = "текст из системы"
+        results.decide = { _ in .dismissed }
+        makeController().run()
+        await settle()
+
+        XCTAssertFalse(recorder.events.contains("copy"))
+        XCTAssertFalse(recorder.events.contains("write"))
+        XCTAssertFalse(recorder.events.contains("restore"))
+        XCTAssertNil(clipboard.restored)
+    }
+
+    /// Reading the selection and typing the answer back is the one round that
+    /// never touches the clipboard from beginning to end.
+    func testAReadSelectionTypedBackNeverTouchesTheClipboardAtAll() async {
+        reader.selection = "текст из системы"
+        settings.pasteMethod = .typing
+        transform.answer = .success("Текст из системы.")
+        makeController().run()
+        await settle()
+
+        XCTAssertEqual(keyboard.typed, "Текст из системы.")
+        XCTAssertFalse(recorder.events.contains("copy"))
+        XCTAssertFalse(recorder.events.contains("write"))
+        XCTAssertFalse(recorder.events.contains("restore"))
+    }
+
+    /// Pasting with ⌘V writes to the clipboard whatever way the selection
+    /// arrived, so that round still has to put back what was there.
+    func testPastingWithCommandVStillGivesTheClipboardBack() async {
+        reader.selection = "текст из системы"
+        transform.answer = .success("Текст из системы.")
+        makeController().run()
+        await settle()
+
+        XCTAssertEqual(
+            recorder.events.filter { ["copy", "write", "paste", "restore"].contains($0) },
+            ["write", "paste", "restore"]
+        )
+        XCTAssertEqual(clipboard.restored?.items.count, 1)
+    }
+
+    /// The switch is for an app that answers with something other than what is
+    /// selected. Off, and nothing is asked at all.
+    func testTheSwitchOffMeansCopyingEvenWhereTheSystemWouldAnswer() async {
+        reader.selection = "текст из системы"
+        settings.readsSelectionDirectly = false
+        makeController().run()
+        await settle()
+
+        XCTAssertEqual(reader.asked, 0)
+        XCTAssertEqual(transform.received, ["выделенный текст"])
+        XCTAssertTrue(recorder.events.contains("copy"))
     }
 }
