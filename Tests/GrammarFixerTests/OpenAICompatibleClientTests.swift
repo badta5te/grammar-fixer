@@ -40,11 +40,12 @@ private func json(_ data: Data?) -> [String: Any] {
 }
 
 final class OpenAICompatibleClientTests: XCTestCase {
-    private let configuration = ProviderConfiguration(
-        model: "deepseek-chat",
+    private var configuration = ProviderConfiguration(
+        model: "deepseek-flash",
         baseURL: URL(string: "https://api.deepseek.com/v1")!,
         apiKey: "secret-key",
-        requestsUsage: true
+        requestsUsage: true,
+        reasoning: .off
     )
 
     private func collect(
@@ -89,7 +90,7 @@ final class OpenAICompatibleClientTests: XCTestCase {
         XCTAssertEqual(messages?.count, 1)
         XCTAssertEqual(messages?.first?["role"], "user")
         XCTAssertEqual(messages?.first?["content"], "исправь это")
-        XCTAssertEqual(body["model"] as? String, "deepseek-chat")
+        XCTAssertEqual(body["model"] as? String, "deepseek-flash")
         XCTAssertEqual(body["stream"] as? Bool, true)
     }
 
@@ -99,6 +100,27 @@ final class OpenAICompatibleClientTests: XCTestCase {
 
         let options = json(await transport.body(ofRequest: 0))["stream_options"] as? [String: Any]
         XCTAssertEqual(options?["include_usage"] as? Bool, true)
+    }
+
+    /// Fixing spelling needs no deliberation, and a reasoning model spends
+    /// both seconds and tokens on it: DeepSeek billed 2966 output tokens for a
+    /// 205-character answer and took sixteen seconds.
+    func testThinkingIsTurnedOffByDefault() async throws {
+        let (client, transport) = makeClient([.init(lines: ["data: [DONE]"])])
+        _ = try await collect(client)
+
+        let body = json(await transport.body(ofRequest: 0))
+        XCTAssertEqual(body["reasoning_effort"] as? String, "none")
+    }
+
+    func testThinkingIsLeftAloneWhenTheConfigurationAsksForIt() async throws {
+        var thinking = configuration
+        thinking.reasoning = ProviderConfiguration.Reasoning.providerDefault
+        let (client, transport) = makeClient([.init(lines: ["data: [DONE]"])], configuration: thinking)
+        _ = try await collect(client)
+
+        let body = json(await transport.body(ofRequest: 0))
+        XCTAssertNil(body["reasoning_effort"])
     }
 
     /// Not every OpenAI-compatible server understands the request for token
@@ -117,6 +139,8 @@ final class OpenAICompatibleClientTests: XCTestCase {
         XCTAssertEqual(sent, 2)
         let second = json(await transport.body(ofRequest: 1))
         XCTAssertNil(second["stream_options"])
+        XCTAssertNil(second["reasoning_effort"])
+        XCTAssertEqual(second["model"] as? String, "deepseek-flash")
     }
 
     func testRetryHappensOnlyOnce() async throws {

@@ -96,7 +96,8 @@ extension ProviderConfiguration {
         model: "test-model",
         baseURL: URL(string: "https://example.com/v1")!,
         apiKey: "k",
-        requestsUsage: true
+        requestsUsage: true,
+        reasoning: .off
     )
 }
 

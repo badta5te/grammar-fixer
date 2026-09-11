@@ -44,14 +44,16 @@ public struct OpenAICompatibleClient: LLMClient {
     }
 
     private func open(prompt: String) async throws -> HTTPStream {
-        var response = try await transport.send(request(prompt: prompt, includeUsage: configuration.requestsUsage))
+        var response = try await transport.send(request(prompt: prompt, withExtras: true))
 
-        // Not every server understands the request for token usage, and some
-        // refuse the whole call because of it. One retry without it is cheaper
-        // than leaving the person without a correction for the sake of a
-        // spending counter that does not exist yet.
-        if response.status == 400 && configuration.requestsUsage {
-            response = try await transport.send(request(prompt: prompt, includeUsage: false))
+        // The optional parts of the request are the parts servers disagree
+        // about: asking for token usage, asking the model not to deliberate.
+        // Some refuse the whole call because of one of them. A single retry
+        // with the bare request is cheaper than leaving the person without a
+        // correction for the sake of a setting.
+        if response.status == 400 && hasExtras {
+            await MainActor.run { Log.write("провайдер отказал с 400, повтор без необязательных полей") }
+            response = try await transport.send(request(prompt: prompt, withExtras: false))
         }
 
         guard (200..<300).contains(response.status) else {
@@ -60,7 +62,12 @@ public struct OpenAICompatibleClient: LLMClient {
         return response
     }
 
-    private func request(prompt: String, includeUsage: Bool) -> URLRequest {
+    /// Whether the request carries anything a server might refuse.
+    private var hasExtras: Bool {
+        configuration.requestsUsage || configuration.reasoning == .off
+    }
+
+    private func request(prompt: String, withExtras extras: Bool) -> URLRequest {
         var request = URLRequest(
             url: configuration.baseURL.appending(path: "chat/completions"),
             timeoutInterval: timeout
@@ -75,8 +82,11 @@ public struct OpenAICompatibleClient: LLMClient {
             "stream": true,
             "messages": [["role": "user", "content": prompt]],
         ]
-        if includeUsage {
+        if extras, configuration.requestsUsage {
             body["stream_options"] = ["include_usage": true]
+        }
+        if extras, configuration.reasoning == .off {
+            body["reasoning_effort"] = "none"
         }
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
         return request

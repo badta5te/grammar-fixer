@@ -17,7 +17,22 @@ public struct ProviderConfiguration: Equatable, Sendable {
 
     /// Not every server understands a request for token usage. The flag turns
     /// the request off up front for servers that complain about it.
-    public let requestsUsage: Bool
+    public var requestsUsage: Bool
+
+    /// Whether the model is allowed to deliberate before answering.
+    ///
+    /// Fixing spelling needs no deliberation, and deliberation is not free.
+    /// DeepSeek's flash model billed 2966 output tokens for a 205-character
+    /// answer and took sixteen seconds; with thinking off the same correction
+    /// came back identical in eight tokens.
+    public var reasoning: Reasoning
+
+    public enum Reasoning: String, Sendable {
+        /// Ask the provider not to think. The default.
+        case off
+        /// Leave the provider to its own default, for anyone who wants it.
+        case providerDefault = "default"
+    }
 
     /// One OpenAI-compatible path covers everyone except Anthropic. Any other
     /// address goes in baseURL and works without a preset.
@@ -73,7 +88,8 @@ public struct ProviderConfiguration: Equatable, Sendable {
             model: model,
             baseURL: url,
             apiKey: key,
-            requestsUsage: file.requestUsage ?? true
+            requestsUsage: file.requestUsage ?? true,
+            reasoning: Reasoning(rawValue: file.reasoning?.lowercased().trimmed ?? "") ?? .off
         )
     }
 
@@ -83,6 +99,7 @@ public struct ProviderConfiguration: Equatable, Sendable {
         var apiKey: String?
         var baseURL: String?
         var requestUsage: Bool?
+        var reasoning: String?
     }
 }
 
@@ -128,7 +145,8 @@ public struct ProviderConfigurationFile: Sendable {
         {
           "_help": "provider: \(ProviderConfiguration.presets.keys.sorted().joined(separator: ", ")). \
         Any other OpenAI-compatible server works too: set baseURL instead of provider. \
-        Take the model name from your provider's own documentation: they rename models often.",
+        Take the model name from your provider's own documentation: they rename models often. \
+        Add \\"reasoning\\": \\"default\\" if you want the model to deliberate before answering.",
           "provider": "deepseek",
           "model": "",
           "apiKey": ""
