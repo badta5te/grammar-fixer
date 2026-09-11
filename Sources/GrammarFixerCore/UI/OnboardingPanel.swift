@@ -52,18 +52,22 @@ public final class OnboardingPanel: NSObject, NSWindowDelegate {
     }
 
     /// Крестик в заголовке закрывает окно мимо наших кнопок, и опрос доступа
-    /// продолжал бы работать в пустоту.
+    /// продолжал бы работать в пустоту. Уборка у обоих путей одна, иначе они
+    /// со временем разойдутся.
     public func windowWillClose(_ notification: Notification) {
-        pollTask?.cancel()
-        pollTask = nil
+        stopPolling()
         panel = nil
     }
 
     public func dismiss() {
-        pollTask?.cancel()
-        pollTask = nil
+        stopPolling()
         panel?.dismiss()
         panel = nil
+    }
+
+    private func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
     }
 }
 

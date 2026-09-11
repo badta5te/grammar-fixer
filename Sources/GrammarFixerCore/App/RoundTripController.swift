@@ -92,11 +92,15 @@ public final class RoundTripController {
         let result = await capture.capture()
         switch result.outcome {
         case .nothingSelected:
-            // Сигнал сразу, а буфер защищаем дальше в фоне: быстрый отказ и
-            // защита от опоздавшей копии — разные сроки.
+            // Сигнал сразу, а присмотр за буфером продолжается ещё полсекунды:
+            // быстрый отказ и защита от опоздавшей копии — разные сроки.
             NSSound.beep()
             if settings.restoreClipboardAfterPaste {
-                Task { @MainActor in await capture.restoreIfCopyLandsLate(after: result) }
+                // Присмотр держит круг открытым намеренно. Отпустить его в
+                // отдельную задачу значило бы разрешить следующему кругу
+                // начаться, пока этот ещё может тронуть буфер, и тогда чужой
+                // снимок лёг бы поверх свежего захвата.
+                await capture.restoreIfCopyLandsLate(after: result)
             }
 
         case .unsupportedSelection:
