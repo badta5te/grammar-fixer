@@ -31,9 +31,11 @@ final class RoundTripErrorTests: XCTestCase {
 /// rule about the language of the interface.
 final class LLMErrorTests: XCTestCase {
     private let all: [LLMError] = [
-        .noConfiguration(path: "~/c.json"),
-        .brokenConfiguration(path: "~/c.json", reason: "bad"),
-        .noKey(path: "~/c.json"),
+        .notConfigured,
+        .noKey,
+        .noModel,
+        .badAddress("localhost:1234"),
+        .unknownProvider("madeup"),
         .noConnection,
         .timedOut,
         .unauthorized("Incorrect API key"),

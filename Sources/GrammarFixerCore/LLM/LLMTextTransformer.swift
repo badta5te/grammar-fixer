@@ -5,19 +5,22 @@ import Foundation
 /// them.
 @MainActor
 public struct LLMTextTransformer: TextTransforming {
-    private let prompt: Prompt
     private let loadConfiguration: () throws -> ProviderConfiguration
+    private let loadPrompt: () -> Prompt
     private let makeClient: (ProviderConfiguration) -> any LLMClient
 
+    /// Both the configuration and the prompt arrive as closures rather than as
+    /// values. They are read again on every round, so a model or a prompt
+    /// changed in the settings window reaches the very next press of the
+    /// shortcut, with nothing to restart.
     public init(
-        prompt: Prompt = .default,
-        loadConfiguration: @escaping () throws -> ProviderConfiguration
-            = { try ProviderConfigurationFile().load() },
+        loadConfiguration: @escaping () throws -> ProviderConfiguration,
+        loadPrompt: @escaping () -> Prompt = { .default },
         makeClient: @escaping (ProviderConfiguration) -> any LLMClient
-            = { OpenAICompatibleClient(configuration: $0, transport: URLSessionLineStream()) }
+            = { ProviderStore.makeClient(for: $0) }
     ) {
-        self.prompt = prompt
         self.loadConfiguration = loadConfiguration
+        self.loadPrompt = loadPrompt
         self.makeClient = makeClient
     }
 
@@ -29,11 +32,12 @@ public struct LLMTextTransformer: TextTransforming {
         AsyncThrowingStream { continuation in
             let task = Task { @MainActor in
                 do {
-                    // The configuration is re-read on every round: switching
-                    // models has to take effect without restarting an agent
-                    // app, which has no window in which a restart would even be
-                    // visible.
+                    // Both are re-read on every round: switching models or
+                    // editing the prompt has to take effect without restarting
+                    // an agent app, which has no window in which a restart
+                    // would even be visible.
                     let configuration = try loadConfiguration()
+                    let prompt = loadPrompt()
                     continuation.yield(.model(configuration.model))
 
                     let client = makeClient(configuration)

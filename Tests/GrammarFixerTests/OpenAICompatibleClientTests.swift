@@ -227,3 +227,117 @@ final class OpenAICompatibleClientTests: XCTestCase {
         ])
     }
 }
+
+/// The list of models comes from the provider rather than from a list written
+/// into this app. A name typed here goes stale the moment a provider renames
+/// something, and they rename things far more often than this app is released.
+final class OpenAICompatibleModelsTests: XCTestCase {
+    private let configuration = ProviderConfiguration(
+        model: "",
+        baseURL: URL(string: "https://api.openai.com/v1")!,
+        apiKey: "secret-key",
+        requestsUsage: true,
+        reasoning: .off
+    )
+
+    private func makeClient(_ answers: [FakeTransport.Answer]) -> (OpenAICompatibleClient, FakeTransport) {
+        let transport = FakeTransport(answers: answers)
+        return (OpenAICompatibleClient(configuration: configuration, transport: transport), transport)
+    }
+
+    func testTheListIsAskedForWithTheSameKeyAsACorrection() async throws {
+        let (client, transport) = makeClient([.init(lines: [#"{"data":[]}"#])])
+        _ = try await client.models()
+
+        let request = await transport.sent[0]
+        XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/models")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer secret-key")
+    }
+
+    /// Newest first, because the reason somebody opens this list is that a new
+    /// model came out.
+    func testTheNewestModelsComeFirst() async throws {
+        let (client, _) = makeClient([.init(lines: [#"""
+            {"data":[{"id":"старая","created":1000},{"id":"новая","created":3000},{"id":"средняя","created":2000}]}
+            """#])])
+
+        let models = try await client.models()
+
+        XCTAssertEqual(models, ["новая", "средняя", "старая"])
+    }
+
+    /// A list without timestamps still has to come back in an order somebody
+    /// can look things up in.
+    func testWithoutTimestampsTheListIsAlphabetical() async throws {
+        let (client, _) = makeClient([.init(lines: [#"{"data":[{"id":"вторая"},{"id":"первая"}]}"#])])
+
+        let models = try await client.models()
+
+        XCTAssertEqual(models, ["вторая", "первая"])
+    }
+
+    /// OpenAI answers this question with everything it sells, most of which
+    /// cannot correct a sentence. A list where the text models are buried is a
+    /// list nobody reads.
+    func testModelsThatCannotWriteTextAreLeftOut() async throws {
+        let (client, _) = makeClient([.init(lines: [#"""
+            {"data":[{"id":"gpt-4o"},{"id":"whisper-1"},{"id":"tts-1-hd"},
+            {"id":"dall-e-3"},{"id":"text-embedding-3-small"},{"id":"omni-moderation-latest"},
+            {"id":"gpt-4o-audio-preview"},{"id":"sora-2"}]}
+            """#])])
+
+        let models = try await client.models()
+
+        XCTAssertEqual(models, ["gpt-4o"])
+    }
+
+    /// OpenRouter answers with several hundred. A menu of several hundred is
+    /// not a menu, and the field beside it is still free to type in.
+    func testAVeryLongListIsCutToTheNewest() async throws {
+        let many = (1...200).map { #"{"id":"model-\#($0)","created":\#($0)}"# }.joined(separator: ",")
+        let (client, _) = makeClient([.init(lines: ["{\"data\":[\(many)]}"])])
+
+        let models = try await client.models()
+
+        XCTAssertEqual(models.count, 50)
+        XCTAssertEqual(models.first, "model-200")
+    }
+
+    func testARefusedKeyIsNamedRatherThanShownAsAnEmptyList() async {
+        let (client, _) = makeClient([
+            .init(status: 401, lines: [#"{"error":{"message":"Incorrect API key provided"}}"#]),
+        ])
+
+        do {
+            _ = try await client.models()
+            XCTFail("ожидался отказ по ключу")
+        } catch {
+            XCTAssertEqual(error as? LLMError, .unauthorized("Incorrect API key provided"))
+        }
+    }
+
+    /// A local server need not implement this at all, and that is not a broken
+    /// key. The field stays free to type in either way.
+    func testAServerWithoutSuchAListSaysSoRatherThanLooksEmpty() async {
+        let (client, _) = makeClient([.init(status: 404, lines: ["not found"])])
+
+        do {
+            _ = try await client.models()
+            XCTFail("ожидался отказ")
+        } catch {
+            XCTAssertEqual(error as? LLMError, .providerRejected("not found"))
+        }
+    }
+
+    func testAnAnswerThatIsNotAListIsNotReadAsAnEmptyOne() async {
+        let (client, _) = makeClient([.init(lines: ["это не json"])])
+
+        do {
+            _ = try await client.models()
+            XCTFail("ожидался отказ")
+        } catch {
+            XCTAssertEqual(error as? LLMError, .modelsUnreadable)
+        }
+    }
+}

@@ -177,3 +177,38 @@ final class FakeResults: ResultPresenting {
         return decide(session)
     }
 }
+
+/// The Keychain without the Keychain. What is under test above it is which key
+/// is asked for and when, not Security.framework, which has tests of its own.
+final class FakeSecrets: SecretStore, @unchecked Sendable {
+    var stored: [String: String] = [:]
+    /// A Keychain can refuse to answer, and that is not the same as being
+    /// empty.
+    var failure: (any Error)?
+
+    func secret(for account: String) throws -> String? {
+        if let failure { throw failure }
+        return stored[account]
+    }
+
+    func store(_ secret: String, for account: String) throws {
+        if let failure { throw failure }
+        stored[account] = secret
+    }
+
+    func removeSecret(for account: String) throws {
+        if let failure { throw failure }
+        stored[account] = nil
+    }
+}
+
+/// The provider's list of models, without the provider.
+final class FakeModelListing: ModelListing, @unchecked Sendable {
+    var models: [String] = []
+    var failure: (any Error)?
+
+    func models() async throws -> [String] {
+        if let failure { throw failure }
+        return models
+    }
+}

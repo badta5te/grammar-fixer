@@ -6,9 +6,11 @@ import Foundation
 /// response body: providers sometimes echo the key they were sent back in the
 /// error description, and a message on screen is readable over a shoulder.
 public enum LLMError: UserFacingError, Equatable {
-    case noConfiguration(path: String)
-    case brokenConfiguration(path: String, reason: String)
-    case noKey(path: String)
+    case notConfigured
+    case noKey
+    case noModel
+    case badAddress(String)
+    case unknownProvider(String)
     case noConnection
     case timedOut
     case unauthorized(String?)
@@ -16,13 +18,17 @@ public enum LLMError: UserFacingError, Equatable {
     case providerRejected(String?)
     case providerUnavailable(status: Int, detail: String?)
     case emptyAnswer
+    case answerTruncated
+    case modelsUnreadable
     case unexpected(String)
 
     public var title: String {
         switch self {
-        case .noConfiguration: "No provider configured"
-        case .brokenConfiguration: "The provider file cannot be read"
+        case .notConfigured: "No provider configured"
         case .noKey: "No API key"
+        case .noModel: "No model chosen"
+        case .badAddress: "The address cannot be used"
+        case .unknownProvider: "Unknown provider"
         case .noConnection: "No connection"
         case .timedOut: "The model took too long"
         case .unauthorized: "The API key was refused"
@@ -30,18 +36,31 @@ public enum LLMError: UserFacingError, Equatable {
         case .providerRejected: "The provider refused the request"
         case .providerUnavailable: "The provider is unavailable"
         case .emptyAnswer: "The model returned nothing"
+        case .answerTruncated: "The answer was cut off"
+        case .answerTruncated:
+            "The model stopped before it finished, which happens with a very long selection. "
+                + "Your text was left untouched rather than replaced with half a correction."
+        case .modelsUnreadable: "The list of models could not be read"
         case .unexpected: "Something went wrong"
         }
     }
 
     public var message: String {
         switch self {
-        case .noConfiguration(let path):
-            "Create \(path) with your provider, model and API key. See the README for the shape."
-        case .brokenConfiguration(let path, let reason):
-            "\(path) is not valid JSON: \(reason)"
-        case .noKey(let path):
-            "Add an apiKey to \(path), or set GRAMMARFIXER_API_KEY before launching."
+        case .notConfigured:
+            "Open Settings from the menu bar and choose a provider, a model and a key."
+        case .noKey:
+            "Open Settings and paste your API key for the chosen provider. "
+                + "The key is kept in the Keychain, never in a file."
+        case .noModel:
+            "Open Settings and type the name of the model to use. "
+                + "Take the name from your provider's own documentation: they rename models often."
+        case .badAddress(let address):
+            "\(address) is not an address GrammarFixer can send a request to. "
+                + "It needs to look like https://example.com/v1."
+        case .unknownProvider(let name):
+            "\(name) is not one of \(ProviderPreset.namesForMessage). "
+                + "Choose one in Settings, or pick your own address and type it in."
         case .noConnection:
             "GrammarFixer could not reach the provider. Your text was left untouched."
         case .timedOut:
@@ -58,6 +77,12 @@ public enum LLMError: UserFacingError, Equatable {
                 + Self.suffix(detail)
         case .emptyAnswer:
             "The model answered with no text at all. Your text was left untouched."
+        case .answerTruncated:
+            "The model stopped before it finished, which happens with a very long selection. "
+                + "Your text was left untouched rather than replaced with half a correction."
+        case .modelsUnreadable:
+            "The provider answered with something other than a list of models. "
+                + "Type the model name in by hand instead."
         case .unexpected(let detail):
             "GrammarFixer could not finish the request, and your text was left untouched."
                 + Self.suffix(detail)

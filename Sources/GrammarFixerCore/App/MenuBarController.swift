@@ -15,6 +15,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let notices: any NoticePresenting
     private let onFixSelection: () -> Void
     private let onShowOnboarding: () -> Void
+    private let onShowSettings: () -> Void
 
     private var restoreClipboardItem: NSMenuItem?
     private var pasteByTypingItem: NSMenuItem?
@@ -24,12 +25,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         settings: Settings,
         notices: any NoticePresenting,
         onFixSelection: @escaping () -> Void,
-        onShowOnboarding: @escaping () -> Void
+        onShowOnboarding: @escaping () -> Void,
+        onShowSettings: @escaping () -> Void
     ) {
         self.settings = settings
         self.notices = notices
         self.onFixSelection = onFixSelection
         self.onShowOnboarding = onShowOnboarding
+        self.onShowSettings = onShowSettings
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
@@ -63,18 +66,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         onboarding.target = self
         menu.addItem(onboarding)
 
-        // The provider and the key live in a file for now; a settings window
-        // arrives in ticket 06. Without this item the only way to the file is
-        // a path buried in an error message.
-        let provider = NSMenuItem(title: "Provider and Key…", action: #selector(openProviderFile), keyEquivalent: "")
-        provider.target = self
-        menu.addItem(provider)
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
 
         menu.addItem(.separator())
 
-        // Settings live here until a window of their own exists. The same
-        // switches are available from a terminal through defaults write,
-        // because the menu bar itself may be hidden.
+        // The two switches that are worth reaching without opening a window
+        // stay here as well. The same switches are available from a terminal
+        // through defaults write, because the menu bar itself may be hidden.
         restoreClipboardItem = addToggle(to: menu, title: "Restore Clipboard After Paste", action: #selector(toggleRestoreClipboard))
         pasteByTypingItem = addToggle(to: menu, title: "Paste by Typing", action: #selector(togglePasteByTyping))
         writeLogItem = addToggle(to: menu, title: "Write Log", action: #selector(toggleWriteLog))
@@ -113,6 +113,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func showOnboarding() { onShowOnboarding() }
 
+    @objc private func showSettings() { onShowSettings() }
+
     @objc private func toggleRestoreClipboard() {
         settings.restoreClipboardAfterPaste.toggle()
         Log.write("восстановление буфера: \(settings.restoreClipboardAfterPaste)")
@@ -142,31 +144,5 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             return
         }
         NSWorkspace.shared.open(Log.fileURL)
-    }
-
-    @objc private func openProviderFile() {
-        do {
-            let url = try ProviderConfigurationFile().createIfMissing()
-
-            // Whoever owns .json opens it, and on a developer's machine that is
-            // Xcode: a four-line settings file arrives in a project editor that
-            // takes seconds to launch. Ask for the plain text editor instead,
-            // which is whatever the person reads plain text with.
-            if let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) {
-                NSWorkspace.shared.open(
-                    [url],
-                    withApplicationAt: editor,
-                    configuration: NSWorkspace.OpenConfiguration()
-                )
-            } else {
-                NSWorkspace.shared.open(url)
-            }
-        } catch {
-            notices.show(Notice(
-                title: "The provider file could not be created",
-                message: "GrammarFixer could not write \(ProviderConfigurationFile.displayPath): "
-                    + error.localizedDescription
-            ))
-        }
     }
 }

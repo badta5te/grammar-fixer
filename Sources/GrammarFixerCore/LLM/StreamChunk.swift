@@ -33,6 +33,10 @@ enum StreamChunk {
             return .delta(content)
         }
 
+        // No ceiling is asked for here, but a provider has one of its own, and
+        // a correction cut short is just as destructive whoever cut it.
+        if chunk.choices?.first?.finishReason == "length" { throw LLMError.answerTruncated }
+
         if let usage = chunk.usage {
             return .usage(TokenUsage(
                 promptTokens: usage.promptTokens ?? 0,
@@ -50,6 +54,12 @@ enum StreamChunk {
 
         struct Choice: Decodable {
             let delta: Delta?
+            let finishReason: String?
+
+            enum CodingKeys: String, CodingKey {
+                case delta
+                case finishReason = "finish_reason"
+            }
         }
 
         /// Reasoning models put their train of thought in a separate field.

@@ -63,4 +63,21 @@ final class StreamChunkTests: XCTestCase {
     func testUnreadableChunkIsIgnoredRatherThanFatal() throws {
         XCTAssertNil(try event("data: {не json"))
     }
+
+    /// The same danger on the other adapter. No ceiling is asked for here, but
+    /// a provider has one of its own, and a half-written correction pasted over
+    /// somebody's text is just as destructive whoever cut it short.
+    func testAnAnswerCutShortByTheProviderIsRaisedRatherThanPassedOn() {
+        let line = #"data: {"choices":[{"delta":{},"finish_reason":"length"}]}"#
+
+        XCTAssertThrowsError(try StreamChunk.event(from: line)) { error in
+            XCTAssertEqual(error as? LLMError, .answerTruncated)
+        }
+    }
+
+    func testAnOrdinaryEndingIsNotMistakenForTruncation() throws {
+        let line = #"data: {"choices":[{"delta":{},"finish_reason":"stop"}]}"#
+
+        XCTAssertNil(try StreamChunk.event(from: line))
+    }
 }

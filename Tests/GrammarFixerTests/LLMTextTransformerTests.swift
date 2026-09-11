@@ -82,10 +82,10 @@ final class LLMTextTransformerTests: XCTestCase {
 
     /// An unconfigured provider has to say so before the request, not after.
     func testMissingConfigurationStopsBeforeTheRequest() async {
-        let transformer = makeTransformer(configuration: { throw LLMError.noConfiguration(path: "~/c.json") })
+        let transformer = makeTransformer(configuration: { throw LLMError.notConfigured })
 
         await XCTAssertThrowsErrorAsync(try await transformer.transform("текст")) { error in
-            XCTAssertEqual(error as? LLMError, .noConfiguration(path: "~/c.json"))
+            XCTAssertEqual(error as? LLMError, .notConfigured)
         }
         XCTAssertTrue(client.prompts.isEmpty)
     }

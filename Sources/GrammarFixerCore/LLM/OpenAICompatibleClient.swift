@@ -3,7 +3,7 @@ import Foundation
 /// A client for `/chat/completions`. One path covers OpenAI, DeepSeek,
 /// OpenRouter, Groq and local servers. What differs between them is not the
 /// protocol but the small print, and the small print is handled here.
-public struct OpenAICompatibleClient: LLMClient {
+public struct OpenAICompatibleClient: LLMClient, ModelListing {
     private let configuration: ProviderConfiguration
     private let transport: any HTTPLineStreaming
     private let timeout: TimeInterval
@@ -40,6 +40,25 @@ public struct OpenAICompatibleClient: LLMClient {
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// The models this provider has, newest first.
+    public func models() async throws -> [String] {
+        do {
+            var request = URLRequest(
+                url: configuration.baseURL.appending(path: "models"),
+                timeoutInterval: timeout
+            )
+            request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+
+            let response = try await transport.send(request)
+            guard (200..<300).contains(response.status) else {
+                throw LLMError.from(status: response.status, body: await body(of: response))
+            }
+            return try ModelCatalog.parse(await ModelCatalog.body(of: response))
+        } catch {
+            throw LLMError.from(error)
         }
     }
 
