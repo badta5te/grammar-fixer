@@ -40,30 +40,41 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
-        if let button = statusItem.button {
-            button.image = NSImage(
-                systemSymbolName: "text.badge.checkmark",
-                accessibilityDescription: AppInfo.name
-            )
-            button.image?.isTemplate = true
-        }
-
         statusItem.menu = makeMenu()
         refresh()
     }
+
+    private static let symbol = "text.badge.checkmark"
 
     /// The icon says when the month has gone past the limit.
     ///
     /// Called from outside whenever a round is recorded, because the icon is
     /// on screen all the time while the menu below it is redrawn only when
-    /// opened. Red rather than a different glyph: the shape is how somebody
-    /// finds this app among twenty other menu bar icons, and changing it would
-    /// hide the app to warn about the bill.
+    /// opened.
+    ///
+    /// Red rather than a different glyph: the shape is how somebody finds this
+    /// app among twenty other menu bar icons, and changing it would hide the
+    /// app in order to warn about the bill. The colour has to be baked into
+    /// the image with a palette, and the image stops being a template while it
+    /// is: a template image is drawn in the menu bar's own colour, and
+    /// contentTintColor on the button leaves it black — which was tried, and
+    /// left an icon that never changed.
     func refresh() {
         let summary = usage.summary(prices: settings.prices)
         let isOver = settings.budget.level(spent: summary.total) == .over
-        statusItem.button?.contentTintColor = isOver ? .systemRed : nil
-        statusItem.button?.toolTip = summary.describe(limit: settings.monthlyLimit)
+
+        guard let button = statusItem.button else { return }
+        let image = NSImage(systemSymbolName: Self.symbol, accessibilityDescription: AppInfo.name)
+        if isOver {
+            button.image = image?.withSymbolConfiguration(
+                NSImage.SymbolConfiguration(paletteColors: [.systemRed])
+            )
+            button.image?.isTemplate = false
+        } else {
+            image?.isTemplate = true
+            button.image = image
+        }
+        button.toolTip = summary.describe(limit: settings.monthlyLimit)
     }
 
     private func makeMenu() -> NSMenu {
