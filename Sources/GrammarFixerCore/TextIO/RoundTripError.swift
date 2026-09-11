@@ -7,7 +7,6 @@ public enum RoundTripError: String, CaseIterable, Equatable, Sendable, Error {
     case secureInputActive
     case focusLost
     case unknownTargetApp
-    case hotKeyUnavailable
 
     public var title: String {
         switch self {
@@ -15,7 +14,6 @@ public enum RoundTripError: String, CaseIterable, Equatable, Sendable, Error {
         case .secureInputActive: "Secure input is active"
         case .focusLost: "The target app did not come back"
         case .unknownTargetApp: "No app to paste into"
-        case .hotKeyUnavailable: "The shortcut is taken"
         }
     }
 
@@ -30,9 +28,6 @@ public enum RoundTripError: String, CaseIterable, Equatable, Sendable, Error {
             "Nothing was pasted, so the text did not end up in the wrong window. Try again."
         case .unknownTargetApp:
             "GrammarFixer could not tell which app the text came from, so it pasted nothing."
-        case .hotKeyUnavailable:
-            "Another app already owns ⇧⌃⌥⌘G, so GrammarFixer never hears it. "
-                + "Free the shortcut in that app, then restart GrammarFixer."
         }
     }
 }

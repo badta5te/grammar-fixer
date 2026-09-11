@@ -4,6 +4,7 @@ import AppKit
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController?
     private var roundTrip: RoundTripController?
+    private var shortcut: ShortcutBinder?
     private var settingsPanel: SettingsPanel?
     private let onboarding = OnboardingPanel()
 
@@ -60,16 +61,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             budget: { [settings, usage] in
                 settings.budget.notice(for: usage.summary(prices: catalog.table))
             },
-            onAccessibilityDenied: { [onboarding] in onboarding.show() }
+            onAccessibilityDenied: { [onboarding] in onboarding.show(shortcut: settings.shortcut.display) }
         )
-        roundTrip.registerHotKey()
         self.roundTrip = roundTrip
+
+        // The combination lives here rather than in the round trip: it can be
+        // changed while the app runs, and every way that can fail has to lead
+        // somewhere other than an app with no shortcut at all.
+        let shortcut = ShortcutBinder(settings: settings, notices: notices) { roundTrip.run() }
+        shortcut.start()
+        self.shortcut = shortcut
 
         let settingsPanel = SettingsPanel(
             settings: settings,
             store: store,
             usage: usage,
-            catalog: catalog
+            catalog: catalog,
+            shortcut: shortcut
         )
         self.settingsPanel = settingsPanel
 
@@ -79,7 +87,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             catalog: catalog,
             notices: notices,
             onFixSelection: { roundTrip.run() },
-            onShowOnboarding: { [onboarding] in onboarding.show() },
+            onShowOnboarding: { [onboarding] in onboarding.show(shortcut: settings.shortcut.display) },
             onShowSettings: { settingsPanel.show() }
         )
         self.menuBar = menuBar
@@ -97,7 +105,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // that on a first launch leaves a person with a shortcut that does
         // nothing.
         if !Accessibility.isTrusted {
-            onboarding.show()
+            onboarding.show(shortcut: settings.shortcut.display)
         }
     }
 }

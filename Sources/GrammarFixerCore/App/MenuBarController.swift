@@ -25,6 +25,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private var restoreClipboardItem: NSMenuItem?
     private var pasteByTypingItem: NSMenuItem?
     private var writeLogItem: NSMenuItem?
+    private var fixItem: NSMenuItem?
 
     init(
         settings: Settings,
@@ -106,10 +107,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let fix = NSMenuItem(title: "Fix Selection", action: #selector(fixSelection), keyEquivalent: "g")
-        fix.keyEquivalentModifierMask = [.command, .shift, .option, .control]
+        let fix = NSMenuItem(title: "Fix Selection", action: #selector(fixSelection), keyEquivalent: "")
         fix.target = self
         menu.addItem(fix)
+        fixItem = fix
 
         let onboarding = NSMenuItem(title: "Accessibility Access…", action: #selector(showOnboarding), keyEquivalent: "")
         onboarding.target = self
@@ -159,6 +160,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         tokenItem?.isHidden = summary.rounds == 0
         rebuildProviderRows(summary)
         refresh()
+
+        // The combination can be changed in the settings window, so the menu
+        // reads it when it opens rather than when it was built.
+        let shortcut = settings.shortcut
+        fixItem?.keyEquivalent = shortcut.menuKeyEquivalent
+        fixItem?.keyEquivalentModifierMask = shortcut.menuModifiers
 
         restoreClipboardItem?.state = settings.restoreClipboardAfterPaste ? .on : .off
         pasteByTypingItem?.state = settings.pasteMethod == .typing ? .on : .off

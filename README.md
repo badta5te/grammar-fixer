@@ -1,15 +1,15 @@
 # GrammarFixer
 
 A native replacement for Raycast's "Fix Spelling and Grammar" command. Select
-some text, press `⇧⌃⌥⌘G`, read the corrected version and put it back. The
+some text, press `⌃⌥⇧⌘G`, read the corrected version and put it back. The
 provider and the model are yours to choose, and what you spend is counted on
 your own machine.
 
 The whole round trip works today: the shortcut takes your selection, sends it
 to a model and shows the corrected text in a panel. From there `⏎` pastes it
 back, `⌘⏎` puts it in the clipboard and `Esc` closes without doing anything.
-The provider, model, key, prompt and theme are changed in a settings window and
-take effect from the very next press of the shortcut. Every round is counted,
+The provider, model, key, prompt, theme and the shortcut itself are changed in
+a settings window and take effect from the very next press. Every round is counted,
 and the menu says what the month has cost so far.
 
 The prototype findings the round trip rests on are in
@@ -227,12 +227,51 @@ defaults write com.badta5te.GrammarFixer MonthlyLimit -float 5
 - `WriteLog` — the round's log in `~/Library/Logs/GrammarFixer.log`. What was
   selected never reaches it, only how long it was.
 - `Theme` — `system`, `light` or `dark`.
+- `ShortcutKeyCode`, `ShortcutModifiers` — the combination, as the physical key
+  and the modifier bits. Easier to change in the window than by hand; a
+  combination written here with no ⌘, ⌃ or ⌥ in it is ignored in favour of the
+  default.
 - `MonthlyLimit` — dollars a month before the app starts saying so. Zero means
   no limit. `Prices` holds only the price rows that were typed by hand, and is
   easier to change in the window than as encoded data.
 - `Provider`, `Model.<provider>`, `BaseURL`, `RequestUsage`, `Reasoning` — the
   same things as in the window. There is no key among them: it is in the
   Keychain.
+
+### The shortcut
+
+`⌃⌥⇧⌘G` is what the app ships with, and the field under `Shortcut` changes it.
+Click it, press the combination you want, and it takes effect at once — there
+is nothing to restart and nothing stored until the system has agreed to hand
+the keys over.
+
+A combination is stored as the physical key and the modifiers, never as a
+character. The key that types `g` on a Latin layout types `п` on a Russian one,
+and a shortcut has to be the same key either way; the name on screen comes from
+a table of Latin labels for the same reason, so that a combination does not
+rename itself when the layout changes. The modifiers are written in the order
+macOS uses in its own menus, so `⌃⌥⇧⌘G` reads here the way it reads anywhere
+else on the system.
+
+Three different ways a combination can be refused, and the difference matters:
+
+- Nothing but a letter, or a letter with shift. That is typing, not a shortcut,
+  and it would fire in the middle of a word.
+- One macOS keeps for itself. Those are read out of the system's own
+  preferences, because Carbon answers "registered" for a combination the system
+  already owns and the shortcut would then quietly never fire.
+- One Carbon refuses outright, which means another app holds it. The
+  combination that was working stays in place rather than leaving the app with
+  no way in at all.
+
+What cannot be found out in advance is a combination another app grabs first
+while leaving Carbon satisfied — the prototype hit exactly that with Raycast.
+Nothing detects it; pressing the keys does.
+
+While the field is listening, the hot key is given back to the system. A global
+hot key fires wherever the keyboard is pointing, this app's own window
+included, so without that the old combination would start a round instead of
+being replaced.
 
 ### Starting at login
 

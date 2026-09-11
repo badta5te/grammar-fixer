@@ -13,18 +13,21 @@ public final class SettingsPanel: NSObject, NSWindowDelegate {
     private let store: ProviderStore
     private let usage: UsageStore
     private let catalog: PriceCatalog
+    private let shortcut: ShortcutBinder
     private var panel: FloatingPanel?
 
     public init(
         settings: Settings,
         store: ProviderStore,
         usage: UsageStore,
-        catalog: PriceCatalog
+        catalog: PriceCatalog,
+        shortcut: ShortcutBinder
     ) {
         self.settings = settings
         self.store = store
         self.usage = usage
         self.catalog = catalog
+        self.shortcut = shortcut
         super.init()
     }
 
@@ -43,7 +46,8 @@ public final class SettingsPanel: NSObject, NSWindowDelegate {
             settings: settings,
             store: store,
             usage: usage,
-            catalog: catalog
+            catalog: catalog,
+            shortcut: shortcut
         )
         let panel = FloatingPanel(styleMask: [.titled, .closable]) {
             SettingsView(state: state)
@@ -94,6 +98,10 @@ public final class SettingsFormState {
     var promptTemplate: String
     var monthlyLimit: String
     var startsAtLogin: Bool
+    var shortcut: Shortcut
+    /// A combination that could not be had. Shown beside the field, because
+    /// the alternative is a key that quietly does nothing later.
+    var shortcutRefusal: Notice?
     var priceRows: [PriceRow] = []
 
     var keyState: KeyState = .untested
@@ -115,12 +123,14 @@ public final class SettingsFormState {
     private let usage: UsageStore
     let catalog: PriceCatalog
     private let loginItem: LoginItem
+    private let binder: ShortcutBinder
 
     init(
         settings: Settings,
         store: ProviderStore,
         usage: UsageStore,
         catalog: PriceCatalog,
+        shortcut binder: ShortcutBinder,
         loginItem: LoginItem = LoginItem()
     ) {
         self.settings = settings
@@ -128,6 +138,8 @@ public final class SettingsFormState {
         self.usage = usage
         self.catalog = catalog
         self.loginItem = loginItem
+        self.binder = binder
+        shortcut = binder.shortcut
         presetId = store.preset.id
         model = store.model
         address = settings.address
@@ -313,6 +325,34 @@ public final class SettingsFormState {
     }
 
     var loginItemWaitsForApproval: Bool { loginItem.waitsForApproval }
+
+    /// A recorded combination. The binder has the last word: it checks what
+    /// the system owns, asks Carbon, and stores nothing until both agree.
+    func recordShortcut(_ recorded: Shortcut) {
+        if let refusal = binder.apply(recorded) {
+            shortcutRefusal = refusal.notice(for: recorded)
+        } else {
+            shortcutRefusal = nil
+        }
+        shortcut = binder.shortcut
+    }
+
+    func resetShortcut() {
+        recordShortcut(.default)
+    }
+
+    var shortcutIsTheDefault: Bool { shortcut == .default }
+
+    /// While the field listens, the hot key is given back, or the combination
+    /// somebody is trying to replace would start a round instead of being
+    /// recorded.
+    func shortcutRecording(_ isRecording: Bool) {
+        if isRecording {
+            binder.suspend()
+        } else {
+            binder.resume()
+        }
+    }
 
     func presetChanged() {
         store.preset = preset

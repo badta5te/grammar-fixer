@@ -1,5 +1,4 @@
 import AppKit
-import Carbon.HIToolbox
 
 /// The whole round trip: shortcut, capture, correction by the model, paste.
 ///
@@ -19,7 +18,6 @@ public final class RoundTripController {
     private let budget: @MainActor () -> BudgetNotice?
     private let onAccessibilityDenied: () -> Void
 
-    private var hotKey: HotKey?
     private var isRunning = false
 
     public init(
@@ -46,28 +44,6 @@ public final class RoundTripController {
         self.environment = environment
         self.budget = budget
         self.onAccessibilityDenied = onAccessibilityDenied
-    }
-
-    /// Registers ⇧⌃⌥⌘G. No Accessibility access is needed for this: a Carbon
-    /// hot key fires before the permission is granted, so the press reaches us
-    /// and we can show the onboarding screen instead of staying silent.
-    public func registerHotKey() {
-        hotKey = HotKey(
-            keyCode: UInt32(kVK_ANSI_G),
-            carbonModifiers: UInt32(cmdKey | shiftKey | optionKey | controlKey)
-        ) { [weak self] in
-            self?.run()
-        }
-        guard hotKey == nil else {
-            Log.write("shortcut ⇧⌃⌥⌘G registered")
-            return
-        }
-        // Without a message the person gets an app that simply does nothing,
-        // and no way to find out why. This does not catch every conflict: the
-        // prototype got noErr for a combination Raycast already owned, so a
-        // taken shortcut can still register successfully and stay silent.
-        Log.write("shortcut ⇧⌃⌥⌘G could NOT be registered")
-        notices.show(RoundTripError.hotKeyUnavailable)
     }
 
     public func run() {

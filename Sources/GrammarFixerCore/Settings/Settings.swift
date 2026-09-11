@@ -20,6 +20,8 @@ public final class Settings {
     public static let promptKey = "PromptTemplate"
     public static let limitKey = "MonthlyLimit"
     public static let pricesKey = "Prices"
+    public static let shortcutKeyCodeKey = "ShortcutKeyCode"
+    public static let shortcutModifiersKey = "ShortcutModifiers"
 
     private let defaults: UserDefaults
 
@@ -36,6 +38,8 @@ public final class Settings {
             Self.requestUsageKey: true,
             Self.reasoningKey: ProviderConfiguration.Reasoning.off.rawValue,
             Self.limitKey: Budget.default,
+            Self.shortcutKeyCodeKey: Int(Shortcut.default.keyCode),
+            Self.shortcutModifiersKey: Shortcut.default.modifiers.rawValue,
         ])
 
         // Before there was a window, one model was kept for the app as a whole.
@@ -148,6 +152,29 @@ public final class Settings {
     }
 
     public var budget: Budget { Budget(limit: monthlyLimit) }
+
+    /// The combination that starts a round.
+    ///
+    /// Stored as the key code and the modifiers rather than as a character:
+    /// the shortcut is a physical key, and a character would mean a different
+    /// key on a different layout. A combination with no real modifier in it
+    /// would fire in the middle of a word, so one written by hand from a
+    /// terminal is refused the same way the editor refuses it.
+    public var shortcut: Shortcut {
+        get {
+            let keyCode = defaults.integer(forKey: Self.shortcutKeyCodeKey)
+            let modifiers = Shortcut.Modifiers(
+                rawValue: defaults.integer(forKey: Self.shortcutModifiersKey)
+            )
+            let stored = Shortcut(keyCode: UInt32(max(0, keyCode)), modifiers: modifiers)
+            guard ShortcutCheck.run(stored, takenBy: []) == nil else { return .default }
+            return stored
+        }
+        set {
+            defaults.set(Int(newValue.keyCode), forKey: Self.shortcutKeyCodeKey)
+            defaults.set(newValue.modifiers.rawValue, forKey: Self.shortcutModifiersKey)
+        }
+    }
 
     /// The prices somebody typed in themselves, and only those.
     ///

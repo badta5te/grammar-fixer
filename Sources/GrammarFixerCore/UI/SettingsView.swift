@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            shortcutSection
             providerSection
             spendingSection
             appearanceSection
@@ -19,6 +20,41 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 560, height: 620)
+    }
+
+    // MARK: - Shortcut
+
+    private var shortcutSection: some View {
+        Section("Shortcut") {
+            LabeledContent("Fix the selection") {
+                ShortcutField(
+                    shortcut: state.shortcut,
+                    onRecording: { state.shortcutRecording($0) },
+                    onRecorded: { state.recordShortcut($0) }
+                )
+                .frame(width: 160, height: 24)
+            }
+
+            if let refusal = state.shortcutRefusal {
+                Label("\(refusal.title). \(refusal.message)", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.footnote)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Click and press the combination you want. It takes effect at once. "
+                    + "A combination macOS keeps for itself is refused, but one held by another "
+                    + "app can only be found out by pressing it: Carbon accepts it and stays quiet.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack {
+                Spacer()
+                Button("Back to \(Shortcut.default.display)") { state.resetShortcut() }
+                    .disabled(state.shortcutIsTheDefault)
+            }
+        }
     }
 
     // MARK: - Provider

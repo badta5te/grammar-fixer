@@ -15,7 +15,12 @@ public final class OnboardingPanel: NSObject, NSWindowDelegate {
 
     public override init() { super.init() }
 
-    public func show() {
+    /// - Parameter shortcut: the combination as it stands now. Passed in
+    ///   rather than read here: the panel is built before there are any
+    ///   settings to read, and a screen telling somebody to press a
+    ///   combination they have since changed is worse than no screen.
+    public func show(shortcut: String) {
+        state.shortcut = shortcut
         if let panel {
             panel.present()
             return
@@ -76,6 +81,7 @@ public final class OnboardingPanel: NSObject, NSWindowDelegate {
 @MainActor
 final class OnboardingState: ObservableObject {
     @Published var isTrusted = false
+    @Published var shortcut = Shortcut.default.display
     var onOpenSettings: () -> Void = {}
     var onClose: () -> Void = {}
 }
@@ -105,7 +111,7 @@ private struct OnboardingView: View {
                 Label("Access granted", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.headline)
-                Text("Select some text anywhere and press ⇧⌃⌥⌘G.")
+                Text("Select some text anywhere and press \(state.shortcut).")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
