@@ -71,30 +71,6 @@ public struct PriceTable: Equatable, Sendable {
     public func merging(_ overrides: [String: Price]) -> PriceTable {
         PriceTable(entries: entries.merging(overrides) { _, mine in mine })
     }
-
-    /// Prices as they stood in September 2026, per million tokens. They are
-    /// here to make the counter useful out of the box, not to be authoritative:
-    /// providers change them without warning, which is exactly why the table is
-    /// editable in the settings window.
-    public static let builtIn = PriceTable(entries: [
-        "openai/gpt-4o": Price(input: 2.50, output: 10.00),
-        "openai/gpt-4o-mini": Price(input: 0.15, output: 0.60),
-        "openai/gpt-4.1": Price(input: 2.00, output: 8.00),
-        "openai/gpt-4.1-mini": Price(input: 0.40, output: 1.60),
-        "openai/gpt-4.1-nano": Price(input: 0.10, output: 0.40),
-
-        "anthropic/claude-3-haiku": Price(input: 0.25, output: 1.25),
-        "anthropic/claude-3-5-haiku": Price(input: 0.80, output: 4.00),
-        "anthropic/claude-haiku-4-5": Price(input: 1.00, output: 5.00),
-        "anthropic/claude-3-5-sonnet": Price(input: 3.00, output: 15.00),
-        "anthropic/claude-sonnet-4": Price(input: 3.00, output: 15.00),
-
-        "deepseek/deepseek-chat": Price(input: 0.27, output: 1.10),
-        "deepseek/deepseek-reasoner": Price(input: 0.55, output: 2.19),
-
-        "groq/llama-3.1-8b-instant": Price(input: 0.05, output: 0.08),
-        "groq/llama-3.3-70b-versatile": Price(input: 0.59, output: 0.79),
-    ])
 }
 
 /// Amounts as they are shown. Dollars because that is what every one of these

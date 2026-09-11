@@ -47,23 +47,28 @@ public struct Budget: Equatable, Sendable {
         let level = level(spent: summary.total)
         guard level != .fine else { return nil }
 
-        // "At least" because a month holding guessed or unpriced rounds is a
-        // floor and not a sum. One word, and the figure stops pretending.
-        let spent = summary.isApproximate
-            ? "at least \(Money.text(summary.total))"
-            : Money.text(summary.total)
+        // "About", always, and never a bare figure. The amount rests on a
+        // published price list rather than on an invoice, and a round whose
+        // model has no price at all is not in it. Both facts are said out
+        // loud: a figure about somebody's money that looks exact without
+        // being exact is the thing this counter was built to avoid.
+        let spent = "about \(Money.text(summary.total))"
+        let missing = summary.unpricedRounds > 0
+            ? " \(summary.unpricedRounds) \(summary.unpricedRounds == 1 ? "round is" : "rounds are") "
+                + "not in that figure: no price for the model."
+            : ""
 
         switch level {
         case .over:
             return BudgetNotice(
                 level: .over,
                 text: "\(spent) spent this month, past the \(Money.text(limit)) limit. "
-                    + "Corrections go on working."
+                    + "Corrections go on working." + missing
             )
         case .approaching:
             return BudgetNotice(
                 level: .approaching,
-                text: "\(spent) of the \(Money.text(limit)) monthly limit spent."
+                text: "\(spent) of the \(Money.text(limit)) monthly limit spent." + missing
             )
         case .fine:
             return nil

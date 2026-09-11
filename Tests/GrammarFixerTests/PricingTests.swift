@@ -53,19 +53,13 @@ final class PricingTests: XCTestCase {
         XCTAssertNil(table.price(provider: "deepseek", model: "deepseek-brand-new"))
     }
 
-    /// Prices change more often than this app is released, so what somebody
-    /// typed wins over what was shipped.
-    func testAnEditedPriceWinsOverTheShippedOne() {
-        let merged = PriceTable.builtIn.merging(["deepseek/deepseek-chat": Price(input: 9, output: 9)])
+    /// A price typed by hand wins over the one that was fetched: somebody
+    /// running a model on their own machine pays nothing per token, and
+    /// somebody on a deal pays less than the list.
+    func testATypedPriceWinsOverAFetchedOne() {
+        let merged = table.merging(["openai/gpt-test": Price(input: 9, output: 9)])
 
-        XCTAssertEqual(merged.price(provider: "deepseek", model: "deepseek-chat"),
-                       Price(input: 9, output: 9))
-    }
-
-    func testTheShippedTableCarriesPricesForTheCommonModels() {
-        XCTAssertNotNil(PriceTable.builtIn.price(provider: "deepseek", model: "deepseek-chat"))
-        XCTAssertNotNil(PriceTable.builtIn.price(provider: "openai", model: "gpt-4o-mini"))
-        XCTAssertNotNil(PriceTable.builtIn.price(provider: "anthropic", model: "claude-3-5-haiku-20241022"))
+        XCTAssertEqual(merged.price(provider: "openai", model: "gpt-test"), Price(input: 9, output: 9))
     }
 
     /// Amounts are shown to the cent, and a round costs a fraction of one. A

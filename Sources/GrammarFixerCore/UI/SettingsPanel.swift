@@ -12,12 +12,19 @@ public final class SettingsPanel: NSObject, NSWindowDelegate {
     private let settings: Settings
     private let store: ProviderStore
     private let usage: UsageStore
+    private let catalog: PriceCatalog
     private var panel: FloatingPanel?
 
-    public init(settings: Settings, store: ProviderStore, usage: UsageStore) {
+    public init(
+        settings: Settings,
+        store: ProviderStore,
+        usage: UsageStore,
+        catalog: PriceCatalog
+    ) {
         self.settings = settings
         self.store = store
         self.usage = usage
+        self.catalog = catalog
         super.init()
     }
 
@@ -32,7 +39,12 @@ public final class SettingsPanel: NSObject, NSWindowDelegate {
             return
         }
 
-        let state = SettingsFormState(settings: settings, store: store, usage: usage)
+        let state = SettingsFormState(
+            settings: settings,
+            store: store,
+            usage: usage,
+            catalog: catalog
+        )
         let panel = FloatingPanel(styleMask: [.titled, .closable]) {
             SettingsView(state: state)
         }
@@ -95,11 +107,13 @@ public final class SettingsFormState {
     private let settings: Settings
     private let store: ProviderStore
     private let usage: UsageStore
+    let catalog: PriceCatalog
 
-    init(settings: Settings, store: ProviderStore, usage: UsageStore) {
+    init(settings: Settings, store: ProviderStore, usage: UsageStore, catalog: PriceCatalog) {
         self.settings = settings
         self.store = store
         self.usage = usage
+        self.catalog = catalog
         presetId = store.preset.id
         model = store.model
         address = settings.address
@@ -126,14 +140,19 @@ public final class SettingsFormState {
         var model: String
         var input: String
         var output: String
-        /// There is an entry of this person's own behind this row, so it can
-        /// be put back to what the app shipped with.
+        /// There is an entry of this person's own behind this row.
         var isEdited: Bool
+        /// What the catalogue says, if anything. Kept so the row can be put
+        /// back to it: a field emptied by hand would otherwise leave the row
+        /// blank with no way back short of reopening the window.
+        var fetched: Price?
         /// The model the next round will use.
         var isCurrent: Bool
+
+        var canBePutBack: Bool { isEdited || fetched != nil }
     }
 
-    var summary: SpendSummary { usage.summary(prices: settings.prices) }
+    var summary: SpendSummary { usage.summary(prices: catalog.table) }
 
     var budget: Budget { settings.budget }
 
@@ -145,7 +164,31 @@ public final class SettingsFormState {
     }
 
     func cost(of record: UsageRecord) -> Double? {
-        settings.prices.cost(of: record)
+        catalog.table.cost(of: record)
+    }
+
+    /// Where the prices came from, and when. "Never" is a real state: a first
+    /// launch without a network has no prices at all, and the window has to
+    /// say so rather than leave every row mysteriously empty.
+    var priceSourceNote: String {
+        guard let fetchedAt = catalog.fetchedAt else {
+            return "\(ModelsDev.name): not fetched yet"
+        }
+        return "\(ModelsDev.name), \(Self.fetched.localizedString(for: fetchedAt, relativeTo: Date()))"
+    }
+
+    private static let fetched: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.unitsStyle = .full
+        return formatter
+    }()
+
+    /// Asks the catalogue again, from the button in the window. The prices in
+    /// hand stay if it fails.
+    func loadPrices() async {
+        await catalog.refresh()
+        reloadPrices()
     }
 
     func limitChanged() {
@@ -167,7 +210,8 @@ public final class SettingsFormState {
         }
 
         var seen = Set<String>()
-        let prices = settings.prices
+        let prices = catalog.table
+        let fetched = PriceTable(entries: catalog.entries)
         let overrides = settings.priceOverrides
         priceRows = keys.compactMap { key in
             let id = PriceTable.key(provider: key.provider, model: key.model)
@@ -179,6 +223,7 @@ public final class SettingsFormState {
                 input: price.map { trim($0.input) } ?? "",
                 output: price.map { trim($0.output) } ?? "",
                 isEdited: overrides[id] != nil,
+                fetched: fetched.price(provider: key.provider, model: key.model),
                 isCurrent: key.provider == preset.id && key.model == model
             )
         }

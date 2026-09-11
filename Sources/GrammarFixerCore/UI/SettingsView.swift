@@ -243,13 +243,52 @@ struct SettingsView: View {
             Label(summary.describe(limit: state.budget.limit), systemImage: level.systemImage)
                 .foregroundStyle(level == .over ? Color.orange : .primary)
 
-            if summary.isApproximate {
-                Text(approximateNote(summary))
+            if summary.rounds > 0 {
+                // Tokens first among the details, because they are the part
+                // that came from the provider rather than from a price list.
+                Text("\(summary.rounds) \(summary.rounds == 1 ? "round" : "rounds") · \(summary.tokens)")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            Text(approximateNote(summary))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            providerBreakdown(summary)
         }
+    }
+
+    /// Who was paid what, and none of it while only one provider was used.
+    @ViewBuilder
+    private func providerBreakdown(_ summary: SpendSummary) -> some View {
+        if !summary.providers.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(summary.providers) { provider in
+                    HStack(spacing: 8) {
+                        Text(providerName(provider.provider))
+                        Spacer(minLength: 8)
+                        Text("\(TokenCount.text(provider.promptTokens)) in"
+                            + " + \(TokenCount.text(provider.completionTokens)) out")
+                            .foregroundStyle(.secondary)
+                        Text(provider.unpricedRounds == provider.rounds
+                            ? "no price"
+                            : "about \(Money.text(provider.total))")
+                            .foregroundStyle(provider.unpricedRounds == provider.rounds
+                                ? Color.orange
+                                : .primary)
+                            .frame(width: 84, alignment: .trailing)
+                    }
+                    .font(.caption)
+                }
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private func providerName(_ id: String) -> String {
+        ProviderPreset.named(id)?.name ?? id
     }
 
     /// Why the figure above is a floor rather than a sum. Without this the
@@ -261,7 +300,8 @@ struct SettingsView: View {
     /// more shaky rounds than the month actually holds — the same kind of
     /// figure that looks solid without being solid.
     private func approximateNote(_ summary: SpendSummary) -> String {
-        var facts: [String] = []
+        var facts = ["Amounts are approximate: they come from \(ModelsDev.name)'s published "
+            + "prices, not from your provider's invoice."]
         if summary.unpricedRounds > 0 {
             facts.append("\(summary.unpricedRounds) of this month's \(summary.rounds) rounds have no "
                 + "price for the model and are left out of the total.")
@@ -281,9 +321,13 @@ struct SettingsView: View {
     private var pricesEditor: some View {
         if !state.priceRows.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Per million tokens, in and out")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("Per million tokens, in and out")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    priceSource
+                }
 
                 ForEach($state.priceRows) { $row in
                     HStack(spacing: 8) {
@@ -313,20 +357,48 @@ struct SettingsView: View {
                             Image(systemName: "arrow.uturn.backward")
                         }
                         .buttonStyle(.borderless)
-                        .disabled(!row.isEdited)
-                        .help("Back to the price this app shipped with")
+                        .disabled(!row.canBePutBack)
+                        .help("Back to the price from \(ModelsDev.name)")
                     }
                     .labelsHidden()
                 }
 
-                Text("Shipped prices are a starting point and go stale: providers change them "
-                    + "without warning. Check them against the provider's own page. A price typed "
-                    + "here counts the rounds that already went through at that rate, this month "
-                    + "included.")
+                Text("A price typed here wins over the fetched one, and counts the rounds that "
+                    + "already went through at that rate, this month included. Leave a row empty "
+                    + "and the round shows as unpriced rather than as free.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    /// Where the prices came from and when, with the way to ask again.
+    ///
+    /// Named on screen rather than buried in a comment: this is a figure about
+    /// somebody's own money, and they are entitled to know whose price list it
+    /// rests on.
+    @ViewBuilder
+    private var priceSource: some View {
+        HStack(spacing: 6) {
+            if state.catalog.isLoading {
+                ProgressView().controlSize(.small)
+            } else if let failure = state.catalog.failure {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .help(failure)
+            }
+            Text(state.priceSourceNote)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Button {
+                Task { await state.loadPrices() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.borderless)
+            .disabled(state.catalog.isLoading)
+            .help("Fetch the prices from \(ModelsDev.name) again")
         }
     }
 

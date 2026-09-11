@@ -1,5 +1,40 @@
 import Foundation
 
+/// One provider's share of the month. Somebody who tried three providers
+/// during a month is owed the breakdown: a single total says nothing about
+/// which of them the money went to, and that is the question behind trying
+/// them at all.
+public struct ProviderSpend: Equatable, Sendable, Identifiable {
+    public var id: String { provider }
+    public var provider: String
+    public var rounds: Int
+    public var promptTokens: Int
+    public var completionTokens: Int
+    public var total: Double
+    public var estimatedRounds: Int
+    public var unpricedRounds: Int
+
+    public init(
+        provider: String,
+        rounds: Int,
+        promptTokens: Int,
+        completionTokens: Int,
+        total: Double,
+        estimatedRounds: Int,
+        unpricedRounds: Int
+    ) {
+        self.provider = provider
+        self.rounds = rounds
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+        self.total = total
+        self.estimatedRounds = estimatedRounds
+        self.unpricedRounds = unpricedRounds
+    }
+
+    public var isApproximate: Bool { estimatedRounds > 0 || unpricedRounds > 0 }
+}
+
 /// What the month cost so far.
 public struct SpendSummary: Equatable, Sendable {
     /// Midnight on the first, in the local time zone.
@@ -7,6 +42,14 @@ public struct SpendSummary: Equatable, Sendable {
     /// The dollars that could actually be priced.
     public var total: Double
     public var rounds: Int
+    /// Tokens are the exact part of all this. They come from the provider,
+    /// and unlike the money they are not read off a price list that could be
+    /// stale, missing or wrong.
+    public var promptTokens: Int
+    public var completionTokens: Int
+    /// The month split by provider, biggest spender first. Empty when only
+    /// one provider was used: a breakdown of one row is a row repeated.
+    public var providers: [ProviderSpend]
     /// Rounds counted from guessed token numbers. They are in the total and
     /// they are not exact.
     public var estimatedRounds: Int
@@ -18,12 +61,18 @@ public struct SpendSummary: Equatable, Sendable {
         monthStart: Date,
         total: Double,
         rounds: Int,
+        promptTokens: Int = 0,
+        completionTokens: Int = 0,
+        providers: [ProviderSpend] = [],
         estimatedRounds: Int,
         unpricedRounds: Int
     ) {
         self.monthStart = monthStart
         self.total = total
         self.rounds = rounds
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+        self.providers = providers
         self.estimatedRounds = estimatedRounds
         self.unpricedRounds = unpricedRounds
     }
@@ -35,11 +84,22 @@ public struct SpendSummary: Equatable, Sendable {
 
     /// The line in the menu. It names the month, because a total with no month
     /// on it invites the question every time it is read.
+    ///
+    /// "About", always. Every figure here rests on a published price list
+    /// rather than on an invoice: the price may be a day out of date, it may
+    /// not cover the model at all, and some rounds are counted from the text.
+    /// Calling the number exact would be the one thing this counter must not
+    /// do.
     public func describe(limit: Double) -> String {
-        let spent = isApproximate ? "at least \(Money.text(total))" : Money.text(total)
         let month = Self.monthName.string(from: monthStart)
+        let spent = "about \(Money.text(total))"
         guard limit > 0 else { return "Spent in \(month): \(spent)" }
         return "Spent in \(month): \(spent) of \(Money.text(limit))"
+    }
+
+    /// The tokens of the month, which are the part that is not guesswork.
+    public var tokens: String {
+        "\(TokenCount.text(promptTokens)) in + \(TokenCount.text(completionTokens)) out"
     }
 
     /// English month names in an app whose every other word is English. A
@@ -122,9 +182,37 @@ public final class UsageStore {
             monthStart: start,
             total: total,
             rounds: thisMonth.count,
+            promptTokens: thisMonth.reduce(0) { $0 + $1.promptTokens },
+            completionTokens: thisMonth.reduce(0) { $0 + $1.completionTokens },
+            providers: Self.split(thisMonth, prices: prices),
             estimatedRounds: thisMonth.count { $0.isEstimated },
             unpricedRounds: unpriced
         )
+    }
+
+    /// The month by provider, dearest first, and nothing at all when there
+    /// was only one of them.
+    private static func split(_ records: [UsageRecord], prices: PriceTable) -> [ProviderSpend] {
+        let names = Set(records.map(\.provider))
+        guard names.count > 1 else { return [] }
+
+        return names.map { name in
+            let mine = records.filter { $0.provider == name }
+            return ProviderSpend(
+                provider: name,
+                rounds: mine.count,
+                promptTokens: mine.reduce(0) { $0 + $1.promptTokens },
+                completionTokens: mine.reduce(0) { $0 + $1.completionTokens },
+                total: mine.reduce(0.0) { $0 + (prices.cost(of: $1) ?? 0) },
+                estimatedRounds: mine.count { $0.isEstimated },
+                unpricedRounds: mine.count { prices.cost(of: $0) == nil }
+            )
+        }
+        // Dearest first, and by name where nothing can be priced, so the
+        // order does not shuffle about between openings of the window.
+        .sorted {
+            $0.total == $1.total ? $0.provider < $1.provider : $0.total > $1.total
+        }
     }
 
     private func forgetTheDistantPast() {

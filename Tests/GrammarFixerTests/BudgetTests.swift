@@ -38,14 +38,18 @@ final class BudgetTests: XCTestCase {
         XCTAssertEqual(notice?.level, .over)
         XCTAssertEqual(notice?.text.contains("$4.10"), true)
         XCTAssertEqual(notice?.text.contains("$3.00"), true)
+        // Never a bare figure: the amount rests on a published price list
+        // rather than on an invoice.
+        XCTAssertEqual(notice?.text.contains("about"), true)
     }
 
-    /// A total built partly from guesses is a floor, not a sum, and saying so
-    /// costs one word.
-    func testAnApproximateTotalSaysItIsAtLeastThatMuch() {
-        let notice = budget.notice(for: summary(4.10, estimated: 1))
+    /// A round nothing can price is not in the total at all, and the notice
+    /// says how many such rounds the month holds. Leaving it out would let a
+    /// month of unpriced rounds read as a cheap month.
+    func testRoundsWithNoPriceAreSaidToBeMissingFromTheFigure() {
+        let notice = budget.notice(for: summary(4.10, unpriced: 2))
 
-        XCTAssertEqual(notice?.text.contains("at least"), true)
+        XCTAssertEqual(notice?.text.contains("2 rounds are not in that figure"), true)
     }
 
     /// Nobody has to have a limit. Zero means no limit rather than a limit of
@@ -72,17 +76,29 @@ final class SpendLineTests: XCTestCase {
         )
     }
 
+    /// "About" is not a hedge here, it is the truth: the figure comes from a
+    /// published price list and not from an invoice.
     func testTheLineNamesTheMonthTheAmountAndTheLimit() {
-        XCTAssertEqual(summary(0.42).describe(limit: 3), "Spent in September: $0.42 of $3.00")
+        XCTAssertEqual(summary(0.42).describe(limit: 3), "Spent in September: about $0.42 of $3.00")
     }
 
     func testWithoutALimitTheLineIsJustTheAmount() {
-        XCTAssertEqual(summary(0.42).describe(limit: 0), "Spent in September: $0.42")
+        XCTAssertEqual(summary(0.42).describe(limit: 0), "Spent in September: about $0.42")
     }
 
-    /// A month holding guessed or unpriced rounds is a floor and not a sum.
-    func testAnApproximateMonthSaysSoInTheMenu() {
-        XCTAssertEqual(summary(0.42, unpriced: 1).describe(limit: 3),
-                       "Spent in September: at least $0.42 of $3.00")
+    /// Tokens are the part that came from the provider rather than from a
+    /// price list, so they are shown as they are.
+    func testTokensAreShownAsTheyCame() {
+        let month = SpendSummary(
+            monthStart: Date(),
+            total: 0.42,
+            rounds: 3,
+            promptTokens: 12_400,
+            completionTokens: 900,
+            estimatedRounds: 0,
+            unpricedRounds: 0
+        )
+
+        XCTAssertEqual(month.tokens, "12.4k in + 900 out")
     }
 }

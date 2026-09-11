@@ -20,6 +20,7 @@ public enum LLMError: UserFacingError, Equatable {
     case emptyAnswer
     case answerTruncated
     case modelsUnreadable
+    case pricesUnreadable
     case unexpected(String)
 
     public var title: String {
@@ -37,10 +38,8 @@ public enum LLMError: UserFacingError, Equatable {
         case .providerUnavailable: "The provider is unavailable"
         case .emptyAnswer: "The model returned nothing"
         case .answerTruncated: "The answer was cut off"
-        case .answerTruncated:
-            "The model stopped before it finished, which happens with a very long selection. "
-                + "Your text was left untouched rather than replaced with half a correction."
         case .modelsUnreadable: "The list of models could not be read"
+        case .pricesUnreadable: "The prices could not be read"
         case .unexpected: "Something went wrong"
         }
     }
@@ -83,6 +82,10 @@ public enum LLMError: UserFacingError, Equatable {
         case .modelsUnreadable:
             "The provider answered with something other than a list of models. "
                 + "Type the model name in by hand instead."
+        case .pricesUnreadable:
+            "\(ModelsDev.name) answered with something other than a price list. "
+                + "The prices already fetched go on being used, and a price can always be "
+                + "typed in by hand."
         case .unexpected(let detail):
             "GrammarFixer could not finish the request, and your text was left untouched."
                 + Self.suffix(detail)

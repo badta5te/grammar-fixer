@@ -158,6 +158,51 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertFalse(store.summary(prices: prices).isApproximate)
     }
 
+    // MARK: - Which provider the money went to
+
+    /// Somebody who tried three providers in a month is owed the breakdown.
+    /// Which of them the money went to is the question behind trying them.
+    func testTheMonthIsSplitByProviderWhenThereWasMoreThanOne() {
+        let store = store(now: date(2026, 9, 11))
+        store.add(round(date(2026, 9, 3), model: "gpt-test", provider: "openai"))
+        store.add(round(date(2026, 9, 4), model: "gpt-test", provider: "openai"))
+        store.add(round(date(2026, 9, 5), model: "other", provider: "deepseek", prompt: 10, completion: 20))
+
+        let split = store.summary(prices: prices).providers
+
+        XCTAssertEqual(split.map(\.provider), ["openai", "deepseek"])
+        XCTAssertEqual(split.first?.rounds, 2)
+        XCTAssertEqual(split.first?.promptTokens, 2_000)
+        XCTAssertEqual(split.first?.completionTokens, 1_000)
+        XCTAssertEqual(split.first?.total ?? 0, 0.014, accuracy: 1e-9)
+        // The second provider's model has no price, so its share is tokens
+        // and nothing else.
+        XCTAssertEqual(split.last?.unpricedRounds, 1)
+        XCTAssertEqual(split.last?.total, 0)
+    }
+
+    /// A breakdown of one row is the row above it repeated.
+    func testOneProviderNeedsNoBreakdown() {
+        let store = store(now: date(2026, 9, 11))
+        store.add(round(date(2026, 9, 3)))
+
+        XCTAssertEqual(store.summary(prices: prices).providers, [])
+    }
+
+    /// Tokens are the exact part of all this: they come from the provider,
+    /// not from a price list.
+    func testTheMonthsTokensAreAddedUp() {
+        let store = store(now: date(2026, 9, 11))
+        store.add(round(date(2026, 9, 3), prompt: 100, completion: 20))
+        store.add(round(date(2026, 9, 4), prompt: 300, completion: 40))
+        store.add(round(date(2026, 8, 4), prompt: 999, completion: 999))
+
+        let summary = store.summary(prices: prices)
+
+        XCTAssertEqual(summary.promptTokens, 400)
+        XCTAssertEqual(summary.completionTokens, 60)
+    }
+
     /// The app runs in the background for months and nobody cleans up after
     /// it. Old rounds are dropped, but not before the counter could still need
     /// them.

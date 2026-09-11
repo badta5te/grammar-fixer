@@ -33,6 +33,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // The history is read once, at launch, and written on every round.
         let usage = UsageStore()
 
+        // Prices are fetched rather than shipped, and the last fetch is
+        // cached, so a launch without a network still knows what a round
+        // costs. Asking for them must never hold up a correction, so it
+        // happens in a task of its own and nothing waits on it.
+        let catalog = PriceCatalog()
+        catalog.readOverrides(from: settings)
+        Task { await catalog.refreshIfStale() }
+
         let clipboard = SystemClipboard()
         let keyboard = SystemKeyboard()
         let notices = NoticePanel()
@@ -50,19 +58,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             notices: notices,
             results: results,
             budget: { [settings, usage] in
-                settings.budget.notice(for: usage.summary(prices: settings.prices))
+                settings.budget.notice(for: usage.summary(prices: catalog.table))
             },
             onAccessibilityDenied: { [onboarding] in onboarding.show() }
         )
         roundTrip.registerHotKey()
         self.roundTrip = roundTrip
 
-        let settingsPanel = SettingsPanel(settings: settings, store: store, usage: usage)
+        let settingsPanel = SettingsPanel(
+            settings: settings,
+            store: store,
+            usage: usage,
+            catalog: catalog
+        )
         self.settingsPanel = settingsPanel
 
         let menuBar = MenuBarController(
             settings: settings,
             usage: usage,
+            catalog: catalog,
             notices: notices,
             onFixSelection: { roundTrip.run() },
             onShowOnboarding: { [onboarding] in onboarding.show() },
@@ -72,7 +86,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // The icon stands on screen while the menu under it is redrawn only
         // when opened, so the round that passes the limit has to say so itself.
-        usage.onChange = { [weak menuBar] in menuBar?.refresh() }
+        usage.onChange = { [weak menuBar] in
+            menuBar?.refresh()
+            // A model nobody has a price for is the moment the catalogue is
+            // worth asking again: it may have gained one since.
+            Task { await catalog.refreshIfStale() }
+        }
 
         // The round trip cannot work without access, and saying nothing about
         // that on a first launch leaves a person with a shortcut that does

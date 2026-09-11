@@ -13,12 +13,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let settings: Settings
     private let usage: UsageStore
+    private let catalog: PriceCatalog
     private let notices: any NoticePresenting
     private let onFixSelection: () -> Void
     private let onShowOnboarding: () -> Void
     private let onShowSettings: () -> Void
 
     private var spendItem: NSMenuItem?
+    private var tokenItem: NSMenuItem?
+    private var providerItems: [NSMenuItem] = []
     private var restoreClipboardItem: NSMenuItem?
     private var pasteByTypingItem: NSMenuItem?
     private var writeLogItem: NSMenuItem?
@@ -26,6 +29,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     init(
         settings: Settings,
         usage: UsageStore,
+        catalog: PriceCatalog,
         notices: any NoticePresenting,
         onFixSelection: @escaping () -> Void,
         onShowOnboarding: @escaping () -> Void,
@@ -33,6 +37,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     ) {
         self.settings = settings
         self.usage = usage
+        self.catalog = catalog
         self.notices = notices
         self.onFixSelection = onFixSelection
         self.onShowOnboarding = onShowOnboarding
@@ -60,7 +65,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// contentTintColor on the button leaves it black — which was tried, and
     /// left an icon that never changed.
     func refresh() {
-        let summary = usage.summary(prices: settings.prices)
+        let summary = usage.summary(prices: catalog.table)
         let isOver = settings.budget.level(spent: summary.total) == .over
 
         guard let button = statusItem.button else { return }
@@ -91,6 +96,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         spend.isEnabled = false
         menu.addItem(spend)
         spendItem = spend
+
+        // Tokens are the exact part. The money above them rests on a
+        // published price list; these numbers came from the provider.
+        let tokens = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        tokens.isEnabled = false
+        menu.addItem(tokens)
+        tokenItem = tokens
 
         menu.addItem(.separator())
 
@@ -141,13 +153,40 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// Check marks are set when the menu opens rather than when it is built:
     /// the same settings change from a terminal, and the menu must not lie.
     func menuNeedsUpdate(_ menu: NSMenu) {
-        let summary = usage.summary(prices: settings.prices)
+        let summary = usage.summary(prices: catalog.table)
         spendItem?.title = summary.describe(limit: settings.monthlyLimit)
+        tokenItem?.title = "\(summary.rounds) \(summary.rounds == 1 ? "round" : "rounds") · \(summary.tokens)"
+        tokenItem?.isHidden = summary.rounds == 0
+        rebuildProviderRows(summary)
         refresh()
 
         restoreClipboardItem?.state = settings.restoreClipboardAfterPaste ? .on : .off
         pasteByTypingItem?.state = settings.pasteMethod == .typing ? .on : .off
         writeLogItem?.state = settings.writesLog ? .on : .off
+    }
+
+    /// A row per provider, and none at all while there was only one. Somebody
+    /// who tried three providers this month is owed the breakdown: which of
+    /// them the money went to is the question behind trying them.
+    private func rebuildProviderRows(_ summary: SpendSummary) {
+        guard let menu = statusItem.menu, let anchor = tokenItem else { return }
+        for item in providerItems { menu.removeItem(item) }
+        providerItems = []
+
+        var index = menu.index(of: anchor)
+        for provider in summary.providers {
+            index += 1
+            let item = NSMenuItem(
+                title: "    \(provider.provider): \(TokenCount.text(provider.promptTokens)) in"
+                    + " + \(TokenCount.text(provider.completionTokens)) out"
+                    + ", about \(Money.text(provider.total))",
+                action: nil,
+                keyEquivalent: ""
+            )
+            item.isEnabled = false
+            menu.insertItem(item, at: index)
+            providerItems.append(item)
+        }
     }
 
     @objc private func fixSelection() { onFixSelection() }

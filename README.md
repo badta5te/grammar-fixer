@@ -205,8 +205,8 @@ defaults write com.badta5te.GrammarFixer MonthlyLimit -float 5
   selected never reaches it, only how long it was.
 - `Theme` — `system`, `light` or `dark`.
 - `MonthlyLimit` — dollars a month before the app starts saying so. Zero means
-  no limit. `Prices` holds the rows of the price table that were edited by
-  hand, and is easier to change in the window than as encoded data.
+  no limit. `Prices` holds only the price rows that were typed by hand, and is
+  easier to change in the window than as encoded data.
 - `Provider`, `Model.<provider>`, `BaseURL`, `RequestUsage`, `Reasoning` — the
   same things as in the window. There is no key among them: it is in the
   Keychain.
@@ -222,17 +222,37 @@ always sent. Past eighty per cent of the limit the result panel says where the
 month stands, and past the limit itself the menu bar icon turns red. Zero means
 no limit at all.
 
-What is stored is tokens, never dollars. Money is worked out on the way out,
-from the price table as it stands at that moment, so a price corrected in the
-window counts the rounds that already went through at that rate. A model
+Every amount is approximate and is shown that way, with the word "about" in
+front of it. The prices come from [models.dev](https://models.dev), a published
+list, and not from anybody's invoice. The window names the source and says when
+it was last fetched, because this is a figure about your own money and you are
+entitled to know whose list it rests on.
+
+Tokens are the part that is not guesswork. They come from the provider, so the
+menu and the window show them beside the money: rounds, tokens in, tokens out.
+When more than one provider was used in a month, each gets a line of its own.
+Which of them the money went to is the question behind trying several.
+
+No prices are compiled into the app. A table written into the source is wrong
+the moment a provider changes a figure, exactly as a list of model names would
+be. The catalogue is fetched at launch, at most once a day, and cached in a
+file, so a launch with no network still knows what a round costs. Nothing waits
+on it: a correction never holds still for a price list. It is the only request
+this app makes that does not go to your own provider, and it carries nothing of
+yours: no key, no prompt, not even which model you use.
+
+A price typed in by hand wins over the fetched one, for anybody running a model
+on their own machine or paying something other than the list price. Only the
+typed rows are stored.
+
+What is stored in the history is tokens, never dollars. Money is worked out on
+the way out, from the prices as they stand at that moment, so a price that
+arrives later counts the rounds that already went through at that rate. A model
 nothing can price is left out of the total and said to be left out, rather than
 counted as free: a round nobody has a price for was not free, and counting it
-as free is the one answer that is certainly wrong.
-
-The prices shipped with the app are a starting point and go stale — providers
-change them without warning, which is why the table is editable. Only the rows
-somebody edits are stored, so a corrected price in a later version still
-reaches everybody who never touched that row.
+as free is the one answer that is certainly wrong. A pair of zeros in the
+catalogue is treated as a gap for the same reason, because several paid models
+are listed there at nothing at all.
 
 The month is the calendar one in the local time zone and turns at midnight on
 the first. Rounds older than thirteen months are forgotten: the app lives in
@@ -245,10 +265,11 @@ that round is marked as an estimate, and the month's total is shown as a floor
 rather than a sum. Cyrillic is guessed at a smaller number of characters per
 token than Latin, because the common tokenizers split it far more finely.
 
-The history is a file of its own:
+The history and the fetched prices are files of their own:
 
 ```
 ~/Library/Application Support/GrammarFixer/usage.json
+~/Library/Application Support/GrammarFixer/prices.json
 ```
 
 ## Requirements
@@ -337,7 +358,7 @@ Sources/GrammarFixerCore/   all of the app's code
   Hotkey/                   the global shortcut, through Carbon
   TextIO/                   capture, paste, the clipboard, permissions
   LLM/                      the prompt, two provider adapters, parsing answers
-  Billing/                  what a round cost, the month, the limit
+  Billing/                  what a round cost, the prices, the month, the limit
   Settings/                 settings over UserDefaults, keys in the Keychain
   UI/                       the windows of an agent app
   Support/                  the log

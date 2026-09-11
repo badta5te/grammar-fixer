@@ -149,16 +149,13 @@ public final class Settings {
 
     public var budget: Budget { Budget(limit: monthlyLimit) }
 
-    /// The prices as this person has them: what was shipped, with their own
-    /// rows laid over it.
+    /// The prices somebody typed in themselves, and only those.
     ///
-    /// Only their rows are stored, the same way the prompt is. A price
-    /// corrected in a later version then reaches everybody who never edited
-    /// that row, and a row put back is simply a row forgotten.
-    public var prices: PriceTable {
-        PriceTable.builtIn.merging(priceOverrides)
-    }
-
+    /// The rest come from the catalogue, which is fetched rather than shipped:
+    /// a price table written into the source is wrong the moment a provider
+    /// changes a figure. A row typed here wins over the catalogue, for anybody
+    /// running a model on their own machine or paying something other than the
+    /// list price.
     public var priceOverrides: [String: Price] {
         get {
             guard let data = defaults.data(forKey: Self.pricesKey),
