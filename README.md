@@ -234,6 +234,25 @@ defaults write com.badta5te.GrammarFixer MonthlyLimit -float 5
   same things as in the window. There is no key among them: it is in the
   Keychain.
 
+### Starting at login
+
+The switch under `Startup` registers the app with the system through
+ServiceManagement, so there is no helper bundle and nothing in
+`~/Library/LaunchAgents`. The system owns that switch, not the app: the window
+asks how things stand every time it opens rather than remembering an answer,
+because a login item can be removed under System Settings → General → Login
+Items while the window is open.
+
+macOS may accept the registration and still wait to be allowed. That is a
+state of its own, and the window says so instead of showing a switch that is on
+while nothing will happen at the next login. A refusal is shown in the system's
+own words, because a refusal here is usually about where the app is kept and
+only the system knows which of its rules this particular copy broke.
+
+The registration points at the bundle where it was made. The app keeps working
+after a rebuild, because the path does not change, but moving the `.app`
+somewhere else means turning the switch off and on again.
+
 ## Spending
 
 Every round is recorded: which provider, which model, how many tokens in and

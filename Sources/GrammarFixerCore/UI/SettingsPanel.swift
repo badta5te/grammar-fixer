@@ -93,10 +93,16 @@ public final class SettingsFormState {
     var pasteByTyping: Bool
     var promptTemplate: String
     var monthlyLimit: String
+    var startsAtLogin: Bool
     var priceRows: [PriceRow] = []
 
     var keyState: KeyState = .untested
     var modelList: ModelListState = .notLoaded
+    /// The system refusing to add or remove the login item. Shown beside the
+    /// switch, because a switch that snaps back on its own is the one outcome
+    /// that leaves somebody flipping it forever.
+    var loginItemFailure: Notice?
+
     /// A Keychain that refused. Shown in place of the key field's own hint,
     /// because a key that fails to save without a word is the one outcome that
     /// leaves a person retyping it forever.
@@ -108,12 +114,20 @@ public final class SettingsFormState {
     private let store: ProviderStore
     private let usage: UsageStore
     let catalog: PriceCatalog
+    private let loginItem: LoginItem
 
-    init(settings: Settings, store: ProviderStore, usage: UsageStore, catalog: PriceCatalog) {
+    init(
+        settings: Settings,
+        store: ProviderStore,
+        usage: UsageStore,
+        catalog: PriceCatalog,
+        loginItem: LoginItem = LoginItem()
+    ) {
         self.settings = settings
         self.store = store
         self.usage = usage
         self.catalog = catalog
+        self.loginItem = loginItem
         presetId = store.preset.id
         model = store.model
         address = settings.address
@@ -126,6 +140,11 @@ public final class SettingsFormState {
         overrides = store.overrides
         apiKey = (try? store.key(for: store.preset)) ?? ""
         monthlyLimit = String(format: "%.2f", settings.monthlyLimit)
+        // Asked of the system rather than stored beside it: a login item can
+        // be removed in System Settings, and a remembered switch would then
+        // show the opposite of what happens at the next login. The window
+        // makes a new form every time it opens, so it asks again then.
+        startsAtLogin = loginItem.isOn
         reloadPrices()
     }
 
@@ -281,6 +300,19 @@ public final class SettingsFormState {
     }
 
     // MARK: - Writing through
+
+    /// The system has the last word here. A refusal puts the switch back where
+    /// it was instead of leaving it showing something that will not happen.
+    ///
+    /// Written through by hand rather than through the section's usual
+    /// `onChange`: putting the switch back is itself a change, and the echo of
+    /// it would come straight back in here and wipe the refusal off the screen.
+    func setStartsAtLogin(_ on: Bool) {
+        loginItemFailure = loginItem.set(on)
+        startsAtLogin = loginItem.isOn
+    }
+
+    var loginItemWaitsForApproval: Bool { loginItem.waitsForApproval }
 
     func presetChanged() {
         store.preset = preset

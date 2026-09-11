@@ -14,6 +14,7 @@ struct SettingsView: View {
             spendingSection
             appearanceSection
             pasteSection
+            startupSection
             promptSection
         }
         .formStyle(.grouped)
@@ -478,6 +479,36 @@ struct SettingsView: View {
                 + "characters.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private var startupSection: some View {
+        Section("Startup") {
+            Toggle(
+                "Start \(AppInfo.name) at login",
+                isOn: Binding(get: { state.startsAtLogin }, set: { state.setStartsAtLogin($0) })
+            )
+
+            if let failure = state.loginItemFailure {
+                Label("\(failure.title). \(failure.message)", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.footnote)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if state.loginItemWaitsForApproval {
+                Label(
+                    "macOS is waiting for you to allow it: System Settings → General → Login Items.",
+                    systemImage: "clock"
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("The app has no Dock icon and no window of its own, so starting it by hand is "
+                    + "something to remember after every restart.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
