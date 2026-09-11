@@ -3,3 +3,7 @@ build/
 .DS_Store
 *.xcworkspace
 .swiftpm/
+
+# Working notes: tickets and plans. They are written in the language the author
+# thinks in, and they are process rather than product.
+.scratch/
