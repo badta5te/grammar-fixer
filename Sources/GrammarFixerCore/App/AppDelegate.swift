@@ -20,6 +20,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let clipboard = SystemClipboard()
         let keyboard = SystemKeyboard()
         let notices = NoticePanel()
+        let results = ResultPanel()
         let roundTrip = RoundTripController(
             settings: settings,
             clipboard: clipboard,
@@ -27,6 +28,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             paster: TextPaster(clipboard: clipboard, keyboard: keyboard, focus: FocusRestorer()),
             transform: LLMTextTransformer(),
             notices: notices,
+            results: results,
             onAccessibilityDenied: { [onboarding] in onboarding.show() }
         )
         roundTrip.registerHotKey()

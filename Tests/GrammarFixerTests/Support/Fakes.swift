@@ -144,3 +144,36 @@ final class FakeTransform: TextTransforming {
         gate = nil
     }
 }
+
+/// The panel, reduced to the one thing a test can check: a decision came back.
+@MainActor
+final class FakeResults: ResultPresenting {
+    private let recorder: Recorder
+    /// What the person does once there is something on screen. The default is
+    /// ⏎, the common case.
+    var decide: (CorrectionSession) -> ResultDecision = { .paste($0.result ?? "") }
+    private(set) var presented: [CorrectionSession] = []
+
+    init(recorder: Recorder) { self.recorder = recorder }
+
+    func present(_ session: CorrectionSession) async -> ResultDecision {
+        recorder.record("present")
+        presented.append(session)
+        // The panel waits for the model with the person watching it, and a
+        // test waits the same way instead of pretending an answer is instant.
+        //
+        // The bound is a clock rather than a count of yields. A count would be
+        // racing the test's own waiting loop, and losing that race would end
+        // the round with an empty answer and no complaint — the test would pass
+        // while checking nothing.
+        let deadline = Date().addingTimeInterval(2)
+        while session.result == nil, !session.hasFailed {
+            guard Date() < deadline else {
+                XCTFail("панель не дождалась ответа за 2 секунды")
+                return .dismissed
+            }
+            await Task.yield()
+        }
+        return decide(session)
+    }
+}

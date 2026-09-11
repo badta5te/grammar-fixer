@@ -14,6 +14,7 @@ public final class RoundTripController {
     private let paster: TextPaster
     private let transform: TextTransforming
     private let notices: any NoticePresenting
+    private let results: any ResultPresenting
     private let environment: any RoundTripEnvironment
     private let onAccessibilityDenied: () -> Void
 
@@ -27,6 +28,7 @@ public final class RoundTripController {
         paster: TextPaster,
         transform: TextTransforming,
         notices: any NoticePresenting,
+        results: any ResultPresenting,
         environment: any RoundTripEnvironment = SystemEnvironment(),
         onAccessibilityDenied: @escaping () -> Void
     ) {
@@ -36,6 +38,7 @@ public final class RoundTripController {
         self.paster = paster
         self.transform = transform
         self.notices = notices
+        self.results = results
         self.environment = environment
         self.onAccessibilityDenied = onAccessibilityDenied
     }
@@ -133,37 +136,76 @@ public final class RoundTripController {
             }
 
         case .captured(let text):
-            await fix(text, in: sourceApp, snapshot: result.snapshot)
+            await correct(text, in: sourceApp, snapshot: result.snapshot)
         }
     }
 
-    private func fix(_ text: String, in sourceApp: NSRunningApplication, snapshot: ClipboardSnapshot) async {
-        let fixed: String
-        do {
-            fixed = try await transform.transform(text)
-        } catch {
-            // By this point the person's selection is already in the
-            // clipboard: capture put it there. A failed model without a
-            // restore would mean a dropped connection quietly ate whatever the
-            // clipboard held.
-            if settings.restoreClipboardAfterPaste {
-                clipboard.restore(snapshot)
+    /// The correction is shown before it goes anywhere. Nothing is pasted on
+    /// its own any more: the round ends where the person decides it ends.
+    private func correct(_ text: String, in sourceApp: NSRunningApplication, snapshot: ClipboardSnapshot) async {
+        let session = CorrectionSession(source: text, produce: { [transform] in transform.stream($0) })
+        session.start()
+
+        // Read before the panel appears and kept for the dismissal: the
+        // clipboard holds the captured selection all the while the panel is
+        // open, and the panel is open for as long as the person likes.
+        let changeCountAfterCapture = clipboard.changeCount
+
+        let decision = await results.present(session)
+        // The stream may still be running when the panel goes: an answer read
+        // into nothing is still an answer being paid for.
+        session.cancel()
+
+        switch decision {
+        case .paste(let fixed):
+            let outcome = await paster.paste(
+                fixed,
+                into: sourceApp,
+                method: settings.pasteMethod,
+                restoreClipboard: settings.restoreClipboardAfterPaste,
+                snapshot: snapshot
+            )
+            if case .failure(let error) = outcome {
+                notices.show(error)
             }
-            let failure = (error as? any UserFacingError) ?? LLMError.from(error)
-            Log.write("исправление не состоялось: \(failure.title)")
-            notices.show(failure)
+
+        case .copy(let fixed):
+            // No restore on purpose. Putting the previous contents back would
+            // undo the one thing that was asked for.
+            clipboard.write(fixed)
+            Log.write("результат положен в буфер, вставки не было")
+
+        case .dismissed:
+            Log.write("панель закрыта, вставки не было")
+            restoreCapturedSelection(
+                snapshot,
+                capturedText: text,
+                unlessChangedSince: changeCountAfterCapture
+            )
+        }
+    }
+
+    /// Puts the clipboard back after a round that pasted nothing — but only if
+    /// it is still ours to put back. The panel can stand open for a minute, and
+    /// in that minute the person may copy something of their own. Restoring
+    /// over a fresh copy is the harm the late-copy guard was written against,
+    /// only with a far longer window.
+    ///
+    /// The change count alone is too strict a test. A terminal with
+    /// copy-on-select moves the count again right after our own ⌘C, and the
+    /// very first live round in Ghostty refused to give the clipboard back for
+    /// exactly that reason. What matters is not how many times the clipboard
+    /// changed but whether anything of the person's is sitting in it now.
+    private func restoreCapturedSelection(
+        _ snapshot: ClipboardSnapshot,
+        capturedText: String,
+        unlessChangedSince changeCount: Int
+    ) {
+        guard settings.restoreClipboardAfterPaste else { return }
+        guard clipboard.changeCount == changeCount || clipboard.readText() == capturedText else {
+            Log.write("в буфере чужая копия — снимок не возвращается")
             return
         }
-
-        let outcome = await paster.paste(
-            fixed,
-            into: sourceApp,
-            method: settings.pasteMethod,
-            restoreClipboard: settings.restoreClipboardAfterPaste,
-            snapshot: snapshot
-        )
-        if case .failure(let error) = outcome {
-            notices.show(error)
-        }
+        clipboard.restore(snapshot)
     }
 }

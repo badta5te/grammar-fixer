@@ -116,3 +116,49 @@ func XCTAssertThrowsErrorAsync<T>(
         check(error)
     }
 }
+
+/// The panel is the reason streaming exists at all, so what it receives is
+/// worth its own test: a name to show and text arriving piece by piece.
+@MainActor
+final class LLMTextTransformerStreamTests: XCTestCase {
+    func testThePanelSeesTheModelAndThePiecesAsTheyArrive() async throws {
+        let client = FakeLLMClient()
+        client.events = [.delta("Привет, "), .delta("как дела?"), .done]
+        let transformer = LLMTextTransformer(
+            loadConfiguration: { .forTesting },
+            makeClient: { _ in client }
+        )
+
+        var received: [CorrectionEvent] = []
+        for try await event in transformer.stream("привет как дела") {
+            received.append(event)
+        }
+
+        XCTAssertEqual(received, [
+            .model("test-model"),
+            .delta("Привет, "),
+            .delta("как дела?"),
+            .finished("Привет, как дела?"),
+        ])
+    }
+
+    /// The stream must end in a refusal rather than in an empty answer: an
+    /// empty answer would be pasted over somebody's text.
+    func testAFailureEndsTheStreamInsteadOfFinishingIt() async {
+        let client = FakeLLMClient()
+        client.failure = LLMError.rateLimited(nil)
+        let transformer = LLMTextTransformer(
+            loadConfiguration: { .forTesting },
+            makeClient: { _ in client }
+        )
+
+        var received: [CorrectionEvent] = []
+        do {
+            for try await event in transformer.stream("текст") { received.append(event) }
+            XCTFail("ожидалась ошибка")
+        } catch {
+            XCTAssertEqual(error as? LLMError, .rateLimited(nil))
+        }
+        XCTAssertEqual(received, [.model("test-model")])
+    }
+}

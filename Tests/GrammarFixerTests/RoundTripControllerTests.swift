@@ -14,6 +14,7 @@ final class RoundTripControllerTests: XCTestCase {
     private var environment: FakeEnvironment!
     private var notices: FakeNotices!
     private var transform: FakeTransform!
+    private var results: FakeResults!
     private var settings: Settings!
     private var deniedShown = 0
 
@@ -27,6 +28,7 @@ final class RoundTripControllerTests: XCTestCase {
         environment = FakeEnvironment(recorder: recorder)
         notices = FakeNotices()
         transform = FakeTransform(recorder: recorder)
+        results = FakeResults(recorder: recorder)
         settings = Settings(defaults: UserDefaults(suiteName: "RoundTripControllerTests")!)
         settings.restoreClipboardAfterPaste = true
         settings.pasteMethod = .clipboard
@@ -60,14 +62,18 @@ final class RoundTripControllerTests: XCTestCase {
             ),
             transform: transform,
             notices: notices,
+            results: results,
             environment: environment,
             onAccessibilityDenied: { [weak self] in self?.deniedShown += 1 }
         )
     }
 
-    /// Waits for the round to finish: it lives in a task of its own.
+    /// Waits for the round to finish: it lives in a task of its own. The count
+    /// is generous because a round is now several tasks deep — capture polls,
+    /// the model answers, the panel waits — and a count that merely happens to
+    /// be enough today turns into a test that fails on a loaded machine.
     private func settle() async {
-        for _ in 0..<200 { await Task.yield() }
+        for _ in 0..<2000 { await Task.yield() }
     }
 
     func testFixedTextIsPastedBack() async {
@@ -86,28 +92,108 @@ final class RoundTripControllerTests: XCTestCase {
         XCTAssertTrue(notices.shown.isEmpty)
     }
 
-    /// The ticket's central new case. By the time the model fails, the
-    /// person's selection is already in the clipboard in place of whatever was
-    /// there, because capture put it there. Without a restore, a network
-    /// failure quietly eats the clipboard.
-    func testFailedModelRestoresTheClipboard() async {
+    /// A refusal now belongs in the panel: the person is already looking at
+    /// it, waiting for their text. A window beside it would be a second thing
+    /// to dismiss saying the same thing.
+    func testAFailedModelIsShownInThePanelRatherThanAWindow() async {
         transform.answer = .failure(LLMError.noConnection)
+        results.decide = { _ in .dismissed }
+        makeController().run()
+        await settle()
+
+        XCTAssertEqual(
+            results.presented.first?.state,
+            .failed(title: LLMError.noConnection.title, message: LLMError.noConnection.message)
+        )
+        XCTAssertTrue(notices.shown.isEmpty)
+        XCTAssertFalse(recorder.events.contains("paste"))
+    }
+
+    /// By the time the model fails, the person's selection is already in the
+    /// clipboard in place of whatever was there, because capture put it there.
+    /// Without a restore, a dropped connection quietly eats the clipboard.
+    func testAClosedPanelGivesTheClipboardBack() async {
+        transform.answer = .failure(LLMError.noConnection)
+        results.decide = { _ in .dismissed }
         makeController().run()
         await settle()
 
         XCTAssertEqual(clipboard.restored?.items.count, 1)
-        XCTAssertEqual(notices.shown.map(\.title), [LLMError.noConnection.title])
-        XCTAssertFalse(recorder.events.contains("paste"))
     }
 
-    func testFailedModelLeavesTheClipboardAloneWhenRestoringIsOff() async {
+    func testTheClipboardIsLeftAloneWhenRestoringIsOff() async {
         settings.restoreClipboardAfterPaste = false
         transform.answer = .failure(LLMError.timedOut)
+        results.decide = { _ in .dismissed }
         makeController().run()
         await settle()
 
         XCTAssertNil(clipboard.restored)
-        XCTAssertEqual(notices.shown.map(\.title), [LLMError.timedOut.title])
+    }
+
+    /// ⌘⏎ takes the clipboard over on purpose, so putting the previous
+    /// contents back would undo the only thing that was asked for.
+    func testCopyingTakesTheClipboardAndPastesNothing() async {
+        transform.answer = .success("Выделенный текст.")
+        results.decide = { .copy($0.result ?? "") }
+        makeController().run()
+        await settle()
+
+        XCTAssertEqual(clipboard.text, "Выделенный текст.")
+        XCTAssertFalse(recorder.events.contains("paste"))
+        XCTAssertFalse(recorder.events.contains("restore"))
+        XCTAssertTrue(notices.shown.isEmpty)
+    }
+
+    /// The panel can stand open for a minute, and in that minute the person may
+    /// copy something of their own. Putting the snapshot back on top of it is
+    /// the same harm the late-copy guard exists to prevent.
+    func testAFreshCopyMadeWhileThePanelWasOpenSurvives() async {
+        results.decide = { [clipboard] _ in
+            clipboard!.simulateCopy("скопировано человеком")
+            return .dismissed
+        }
+        makeController().run()
+        await settle()
+
+        XCTAssertNil(clipboard.restored)
+        XCTAssertEqual(clipboard.text, "скопировано человеком")
+    }
+
+    /// The count alone is too strict a test. A terminal with copy-on-select
+    /// moves it again right after our own ⌘C, and the first live round in
+    /// Ghostty refused to give the clipboard back for that reason. What is in
+    /// the clipboard decides, not how often it changed.
+    func testAnotherChangeHoldingOurOwnSelectionStillRestores() async {
+        results.decide = { [clipboard] _ in
+            clipboard!.simulateCopy("выделенный текст")
+            return .dismissed
+        }
+        makeController().run()
+        await settle()
+
+        XCTAssertEqual(clipboard.restored?.items.count, 1)
+    }
+
+    /// A decision that never arrives would leave the round open and the
+    /// shortcut dead until a restart. Closing the panel has to free it.
+    func testAClosedPanelLeavesTheShortcutWorking() async {
+        // Two rounds, so the copy has to happen twice: the counter runs on
+        // through the whole test and a one-off would make the second round
+        // fail for a reason this test is not about.
+        clock.onTick = { [clipboard] tick in
+            if tick % 3 == 0 { clipboard!.simulateCopy("выделенный текст") }
+        }
+        results.decide = { _ in .dismissed }
+        let controller = makeController()
+        controller.run()
+        await settle()
+
+        controller.run()
+        await settle()
+
+        XCTAssertEqual(results.presented.count, 2)
+        XCTAssertEqual(environment.beeps, 0)
     }
 
     /// A round with a model takes seconds, not milliseconds. A second press
