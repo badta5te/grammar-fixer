@@ -23,7 +23,7 @@ public struct ProviderConfiguration: Equatable, Sendable {
     /// address goes in baseURL and works without a preset.
     static let presets = [
         "openai": "https://api.openai.com/v1",
-        "deepseek": "https://api.deepseek.com/v1",
+        "deepseek": "https://api.deepseek.com",
         "openrouter": "https://openrouter.ai/api/v1",
         "groq": "https://api.groq.com/openai/v1",
     ]
@@ -127,9 +127,10 @@ public struct ProviderConfigurationFile: Sendable {
     static let template = """
         {
           "_help": "provider: \(ProviderConfiguration.presets.keys.sorted().joined(separator: ", ")). \
-        Any other OpenAI-compatible server works too: set baseURL instead of provider.",
-          "provider": "openai",
-          "model": "gpt-4o-mini",
+        Any other OpenAI-compatible server works too: set baseURL instead of provider. \
+        Take the model name from your provider's own documentation: they rename models often.",
+          "provider": "deepseek",
+          "model": "",
           "apiKey": ""
         }
 

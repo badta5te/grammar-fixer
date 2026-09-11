@@ -16,9 +16,9 @@ final class ProviderConfigurationTests: XCTestCase {
     }
 
     func testPresetGivesTheBaseUrl() throws {
-        let config = try make(#"{"provider":"deepseek","model":"deepseek-chat","apiKey":"k"}"#)
-        XCTAssertEqual(config.baseURL.absoluteString, "https://api.deepseek.com/v1")
-        XCTAssertEqual(config.model, "deepseek-chat")
+        let config = try make(#"{"provider":"deepseek","model":"deepseek-flash","apiKey":"k"}"#)
+        XCTAssertEqual(config.baseURL.absoluteString, "https://api.deepseek.com")
+        XCTAssertEqual(config.model, "deepseek-flash")
         XCTAssertEqual(config.apiKey, "k")
     }
 
@@ -95,7 +95,7 @@ final class ProviderConfigurationTests: XCTestCase {
 /// Nobody eyeballs the template, and a broken template is what greets a person
 /// on their very first launch.
 extension ProviderConfigurationTests {
-    func testTheTemplateIsValidAndOnlyMissesTheKey() {
+    func testTheTemplateIsValidJsonWithBlanksToFillIn() {
         XCTAssertThrowsError(
             try ProviderConfiguration.make(
                 fileContents: ProviderConfigurationFile.template.data(using: .utf8),
@@ -104,6 +104,22 @@ extension ProviderConfigurationTests {
             )
         ) { error in
             XCTAssertEqual(error as? LLMError, .noKey(path: path))
+        }
+
+        // The model is left blank on purpose. A plausible but outdated name
+        // looks filled in, and the provider's refusal then reads as a broken
+        // app rather than as a name to change.
+        XCTAssertThrowsError(
+            try ProviderConfiguration.make(
+                fileContents: ProviderConfigurationFile.template.data(using: .utf8),
+                environment: ["GRAMMARFIXER_API_KEY": "k"],
+                path: path
+            )
+        ) { error in
+            guard case LLMError.brokenConfiguration(_, let reason)? = error as? LLMError else {
+                return XCTFail("ожидался разбор файла, получено \(error)")
+            }
+            XCTAssertTrue(reason.contains("model"))
         }
     }
 
