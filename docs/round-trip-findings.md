@@ -1,206 +1,210 @@
-# Выводы прототипа круга захвата и вставки
+# Findings from the capture-and-paste prototype
 
-Прототип из тикета 02. Его код выброшен из `main` и сохранён отдельно, здесь
-остались только ответы, ради которых он писался.
+The prototype from ticket 02. Its code was thrown out of `main` and kept apart;
+what stays here are the answers it was written to get.
 
-Машина проверки: macOS 15.7.7, экран 1728×1079, Karabiner-Elements, Hidden Bar,
-Raycast.
+The machine it was checked on: macOS 15.7.7, a 1728×1079 screen,
+Karabiner-Elements, Hidden Bar, Raycast.
 
-Важная граница всех выводов ниже: super key приходит не с железной клавиатуры.
-Karabiner мапит Caps Lock на `⇧⌃⌥⌘`, то есть модификаторы порождает виртуальное
-устройство. Для этого пользователя так и выглядит штатный вызов, поэтому для
-продукта выборка представительная. Но настоящий аккорд из четырёх физически
-зажатых клавиш не проверялся, и если ловушка всё-таки существует, она может
-жить именно там.
+One boundary applies to every finding below: the super key does not come from a
+hardware keyboard. Karabiner maps Caps Lock to `⇧⌃⌥⌘`, so the modifiers are
+produced by a virtual device. For this user that is what a normal invocation
+looks like, so the sample is representative of the product. But a real chord of
+four physically held keys was never tested, and if the trap does exist, that is
+where it lives.
 
-## Главный вопрос: что делать с зажатыми модификаторами
+## The main question: what to do about held modifiers
 
-**Ни ожидание отпускания, ни приватный источник событий не нужны.** Достаточно
-явно выставить `flags` на самом `CGEvent`.
+**Neither waiting for the keys to be released nor a private event source is
+needed.** It is enough to set `flags` explicitly on the `CGEvent` itself.
 
-Ловушка сформулирована в плане так: в момент срабатывания хоткея все четыре
-модификатора зажаты, поэтому синтетический `⌘C` уедет в приложение как
-`⇧⌃⌥⌘C` и будет проигнорирован. Первая половина верна и подтверждена замером:
+The plan stated the trap this way: when the shortcut fires all four modifiers
+are held, so a synthetic `⌘C` will reach the app as `⇧⌃⌥⌘C` and be ignored. The
+first half is true and confirmed by measurement:
 
 ```
-флаги в момент срабатывания: cmd+shift+alt+ctrl
+modifiers when the shortcut fired: cmd+shift+alt+ctrl
 ```
 
-Вторая половина на macOS 15.7.7 не воспроизводится. Проверено перебором
-стратегий, каждый раз с намеренно зажатым на две секунды Caps Lock:
+The second half does not reproduce on macOS 15.7.7. Checked by working through
+the strategies, each time with Caps Lock deliberately held for two seconds:
 
-| Ожидание отпускания | Источник события | Попыток | Удачных | Буфер обновился, мс |
+| Wait for release | Event source | Attempts | Succeeded | Clipboard changed, ms |
 | --- | --- | --- | --- | --- |
-| да | `privateState` | 25 | 25 | 10–146 |
-| нет | `privateState` | 2 | 2 | 34, 103 |
-| нет | `hidSystemState` | 3 | 3 | 22, 23, 46 |
+| yes | `privateState` | 25 | 25 | 10–146 |
+| no | `privateState` | 2 | 2 | 34, 103 |
+| no | `hidSystemState` | 3 | 3 | 22, 23, 46 |
 
-Выборка без ожидания маленькая, пять попыток против двадцати пяти. Считать её
-доказательством разницы во времени нельзя. Доказывает она другое, и для этого
-пяти попыток хватает: **все пять завершились успехом при намеренно зажатых на
-две секунды модификаторах.** Ни одного провала не было, а ловушка предсказывала
-провал в каждом случае.
+The sample without the wait is small, five attempts against twenty-five. It
+cannot be read as proof of a difference in time. It proves something else, and
+for that five attempts are enough: **all five succeeded with the modifiers
+deliberately held for two seconds.** There was not one failure, and the trap
+predicted failure in every case.
 
-Во всех замерах `flags` присваивались явно на обоих событиях пары
-нажатие-отпускание:
+In every measurement `flags` were assigned explicitly on both events of the
+down-up pair:
 
 ```swift
 keyDown.flags = .maskCommand
 keyUp.flags = .maskCommand
 ```
 
-Отрицательный случай, без явного присвоения, не проверялся, поэтому утверждать,
-что лечит именно эта строка, оснований нет. Данными подтверждено более узкое:
-на macOS 15.7.7 при явно выставленных флагах зажатые модификаторы синтетическим
-событиям не мешают.
+The negative case, without the explicit assignment, was not tried, so there are
+no grounds for claiming that this line is what cures it. What the data supports
+is narrower: on macOS 15.7.7, with flags set explicitly, held modifiers do not
+get in the way of synthetic events.
 
-Вставка проверена отдельно, потому что у неё другой профиль риска: `⌘V` уходит
-уже после нажатия `⏎`, и пользователь вполне может держать в этот момент
-модификатор. Проверено с зажатым Shift:
+Pasting was checked separately, because its risk profile is different: `⌘V`
+goes out after `⏎` has been pressed, and the person may well be holding a
+modifier at that moment. Checked with Shift held:
 
 ```
-флаги перед вставкой: shift
-круг завершён
+modifiers held before pasting: shift
+round finished
 ```
 
-Вставка прошла. Значит вывод покрывает обе половины круга, а не только захват.
+The paste went through. So the finding covers both halves of the round trip
+rather than capture alone.
 
-**Вывод для тикета 03:** ожидание отпускания не ставить ни на захвате, ни на
-вставке. Оно ничего не чинит и стоит заметной задержки: 29 замеров дали медиану
-192 мс при разбросе от 108 до 1180 мс, потому что это время живого человека,
-снимающего палец с клавиши.
-Фиксированную задержку вместо него ставить тем более нельзя.
+**What this means for ticket 03:** do not wait for a release, on capture or on
+paste. It fixes nothing and costs a noticeable delay: 29 measurements gave a
+median of 192 ms with a spread from 108 to 1180 ms, because that is the time a
+living person takes to lift a finger off a key. A fixed delay in its place is
+even less defensible.
 
-Источник оставить `privateState`: разницы в поведении нет, но он не зависит от
-состояния физической клавиатуры, и это дешёвая страховка. Код ожидания есть в
-ветке прототипа, если симптом всё-таки всплывёт на другой машине.
+Keep `privateState` as the source: there is no difference in behaviour, but it
+does not depend on the state of the physical keyboard, and that is cheap
+insurance. The waiting code is on the prototype branch if the symptom does turn
+up on another machine.
 
-## Провал копирования определяется по счётчику буфера
+## A failed copy is detected by the clipboard's change count
 
-Подтверждено полностью. Снимок `NSPasteboard.general.changeCount` до отправки
-`⌘C`, затем опрос до инкремента или таймаута.
+Fully confirmed. Take `NSPasteboard.general.changeCount` before sending `⌘C`,
+then poll until it increments or the wait runs out.
 
-Порядок операций важнее самого счётчика: **до подтверждённого инкремента в
-буфер обмена не пишется ничего.** Поэтому «ничего не выделено» не может
-превратиться во вставку вчерашнего содержимого буфера в чужое приложение.
-Проверено в Ghostty: счётчик не сдвинулся, сигнал прозвучал, панель не
-открылась, буфер остался нетронутым.
+The order of operations matters more than the counter itself: **nothing is
+written to the clipboard before a confirmed increment.** So "nothing is
+selected" cannot turn into yesterday's clipboard being pasted into somebody
+else's app. Checked in Ghostty: the count did not move, the beep sounded, the
+panel did not open, and the clipboard was left untouched.
 
-Замеры времени до инкремента, все 30 за сессию, по всем приложениям:
+Times to the increment, all 30 from the session, across every app:
 
 ```
 10 12 22 22 22 22 22 23 23 23 23 23 23 33 34
 34 34 44 44 45 46 55 57 61 66 69 77 103 103 146
 ```
 
-Медиана 34 мс, максимум 146 мс.
+A median of 34 ms and a maximum of 146 ms.
 
-**Вывод для тикета 03:** таймаут в прототипе стоял 1000 мс, и это слишком
-много. Пустое выделение давало сигнал только через 1.2 секунды после хоткея,
-что читается как «приложение не среагировало». При максимуме в 146 мс разумная
-отправная точка — 400 мс.
+**What this means for ticket 03:** the prototype's timeout was 1000 ms, and
+that is far too long. An empty selection beeped only 1.2 seconds after the
+shortcut, which reads as "the app did not react". With a maximum of 146 ms, a
+sensible starting point is 400 ms.
 
-Но это направление, а не готовое число. Замеры делались на коротких выделениях,
-в нескольких приложениях и без нагрузки. Большое выделение или подтормаживающее
-приложение вполне могут выйти за 400 мс, и цена ошибки несимметрична: слишком
-короткий таймаут молча объявит «ничего не выделено» там, где текст был. Тикету
-03 стоит подобрать значение на длинных текстах и, возможно, отделить «ещё жду»
-от «точно пусто».
+But that is a direction rather than a finished number. The measurements were
+taken on short selections, in a handful of apps, with no load. A large
+selection or a stuttering app may well go past 400 ms, and the cost of being
+wrong is not symmetrical: too short a timeout will quietly declare "nothing
+selected" where there was text. Ticket 03 should settle the value on long texts
+and perhaps tell "still waiting" apart from "definitely empty".
 
-Отдельный случай, найденный в Chrome: счётчик сдвинулся, а строки в буфере нет.
-Выделение было не текстовым. Проверять надо оба условия, инкремент и наличие
-непустой строки, иначе дальше поедет `nil`.
+A separate case, found in Chrome: the count moved but there was no string in
+the clipboard. The selection was not text. Both conditions have to be checked,
+the increment and the presence of a non-empty string, or a nil travels onward.
 
-## Панель: два обязательных свойства, каждое найдено ошибкой
+## The panel: two mandatory properties, each found through a bug
 
-Панель сначала вообще не появлялась на экране, при том что `isVisible` был
-`true`, координаты верные, альфа единица, а в списке окон она числилась. В
-списке окон текущего пространства её при этом не было.
+At first the panel did not appear on screen at all, even though `isVisible` was
+`true`, the coordinates were right, alpha was one, and it was listed among the
+windows. It was not in the list of windows for the current space.
 
-Причины оказались две, и обе обязательны:
+There were two causes, and both are mandatory:
 
-1. **`hidesOnDeactivate = false`.** `NSPanel`, в отличие от `NSWindow`, по
-   умолчанию прячется, когда его приложение неактивно. Приложение-агент
-   неактивно всегда, поэтому панель пряталась сразу после показа.
-2. **`.nonactivatingPanel` в `styleMask`.** Это форма Spotlight и Raycast:
-   панель берёт клавиатурный ввод, приложение при этом не становится активным.
-   Без этого `NSApp.activate(ignoringOtherApps:)` на macOS 15 просто
-   игнорируется, `NSApp.isActive` остаётся `false`, и фокус не приходит.
+1. **`hidesOnDeactivate = false`.** `NSPanel`, unlike `NSWindow`, hides itself
+   by default when its app is inactive. An agent app is always inactive, so the
+   panel hid itself immediately after being shown.
+2. **`.nonactivatingPanel` in the `styleMask`.** This is the shape Spotlight
+   and Raycast have: the panel takes keyboard input without the app becoming
+   active. Without it, `NSApp.activate(ignoringOtherApps:)` on macOS 15 is
+   simply ignored, `NSApp.isActive` stays `false`, and focus never arrives.
 
-Они менялись одной правкой, поэтому строго говоря не доказано, что каждое из
-них по отдельности необходимо. Доказано, что вместе они достаточны, а до них
-ни повышение уровня окна, ни `orderFrontRegardless()` не помогали.
+They were changed in one edit, so strictly speaking it is not proven that each
+is necessary on its own. What is proven is that together they are sufficient,
+and that before them neither raising the window level nor
+`orderFrontRegardless()` helped.
 
-Показывать через `orderFrontRegardless()`, а не `makeKeyAndOrderFront`:
-последний из неактивного приложения окно на текущее пространство не выводит.
+Show it with `orderFrontRegardless()` rather than `makeKeyAndOrderFront`: from
+an inactive app the latter does not bring the window to the current space.
 
-Уровень `.popUpMenu`. `.floating` со своей тройкой оказался бы под Dock,
-который сидит на слое 20, и под соседями вроде AlDente на 24.
+Level `.popUpMenu`. `.floating`, at level three, would sit under the Dock at
+twenty and under neighbours such as AlDente at twenty-four.
 
-Закрытие по клику мимо панели сделано глобальным монитором
-`NSEvent.addGlobalMonitorForEvents`: такой монитор получает только события,
-ушедшие мимо нашего приложения, то есть ровно клики снаружи.
+Dismissal on a click outside the panel is done with a global monitor,
+`NSEvent.addGlobalMonitorForEvents`: such a monitor receives only the events
+that went past our app, which is exactly the outside clicks.
 
-## Возврат фокуса оказался бесплатным
+## Returning focus turned out to be free
 
-Это прямое следствие `.nonactivatingPanel`: исходное приложение ни на миг не
-перестаёт быть frontmost. Во всех десяти замерах возврат фокуса занял 0 мс и
-был подтверждён сразу.
+That is a direct consequence of `.nonactivatingPanel`: the source app never
+stops being frontmost, not for a moment. In all ten measurements returning
+focus took 0 ms and was confirmed at once.
 
-Ноль миллисекунд означает, что каждый раз срабатывала ранняя проверка «нужное
-приложение уже впереди», а настоящий путь с подпиской на
-`didActivateApplicationNotification` не выполнялся. Панель своим устройством
-случайно убрала ровно ту ловушку, ради которой прототип и писался.
+Zero milliseconds means the early check, "the app we want is already in front",
+fired every time, and the real path with its subscription to
+`didActivateApplicationNotification` never ran. By the way it is built, the
+panel accidentally removed the very trap the prototype was written for.
 
-Поэтому путь проверен отдельно: перед вставкой фокус намеренно уводится в
-Finder, и возврату приходится делать настоящую работу.
-
-```
-крюк: фокус уведён в Finder за 15 мс, подтверждён=да
-возврат фокуса в Slack: 8 мс, подтверждён=да
-```
-
-Четыре замера в Slack и Mail: увод 11–18 мс, возврат 8–11 мс, подтверждение
-приходило уведомлением все четыре раза, таймаут не срабатывал ни разу.
-**Асинхронная ветка работает и перенесена в тикет 03 как проверенная.**
-
-Что из этого следует:
-
-- Ловушка не исчезла, а стала дешевле. Панель всё равно надо убирать до
-  вставки, иначе нажатие уйдёт в неё, а не в целевое приложение.
-- Порядок прежний: убрать панель, подтвердить, что нужное приложение впереди,
-  и только потом слать вставку.
-- Подтверждение оставить наблюдением. В штатном случае оно бесплатно, в
-  случае с настоящей потерей фокуса стоит около 10 мс.
-
-## Защищённый ввод: определяется заранее и обязателен к проверке
-
-Проверено на поле пароля в Safari. Результат однозначный:
+So the path was checked on its own: before pasting, focus is deliberately taken
+away to Finder, and returning it has to do real work.
 
 ```
-защищённый ввод: true
-ожидание отпускания модификаторов: 152 мс, дождались=да
-счётчик буфера не изменился за 1000 мс — считаем, что выделения нет
+hook: focus taken to Finder in 15 ms, confirmed=yes
+focus returned to Slack: 8 ms, confirmed=yes
 ```
 
-- `IsSecureEventInputEnabled()` возвращает `true`, то есть состояние видно
-  заранее и дёшево.
-- Хоткей при этом **продолжает срабатывать**, приложение живо и может
-  показать ошибку.
-- Синтетический `⌘C` не доставляется молча. Счётчик буфера не двигается.
+Four measurements in Slack and Mail: away in 11–18 ms, back in 8–11 ms, the
+confirmation arriving as a notification all four times, and the timeout never
+firing. **The asynchronous branch works and goes to ticket 03 as proven.**
 
-Отсюда прямое требование к тикету 03: **проверять флаг до захвата.** Без
-проверки защищённый ввод неотличим от пустого выделения, и пользователь
-получает сообщение «ничего не выделено» там, где текст выделен. Это ровно тот
-молчаливый сбой, который тикет 03 обязан устранить.
+What follows from this:
 
-## Буфер обмена: копировать только строку нельзя
+- The trap has not disappeared, it has become cheaper. The panel still has to
+  be taken away before pasting, or the keystroke goes into it rather than into
+  the target app.
+- The order is unchanged: take the panel away, confirm the app we want is in
+  front, and only then send the paste.
+- Keep confirming by observation. In the ordinary case it is free; where focus
+  is genuinely lost it costs about 10 ms.
 
-Найдено ошибкой на живом буфере. Прототип сначала сохранял лишь
-`string(forType: .string)`, и круг, запущенный поверх скопированного
-скриншота, уничтожал картинку безвозвратно.
+## Secure input: visible in advance, and mandatory to check
 
-Глубокая копия всех типов решает это полностью:
+Checked on a password field in Safari. The result is unambiguous:
+
+```
+secure input: true
+waiting for the modifiers to be released: 152 ms, released=yes
+the clipboard count did not change in 1000 ms, so nothing was selected
+```
+
+- `IsSecureEventInputEnabled()` returns `true`, so the state is visible in
+  advance and cheaply.
+- The shortcut **still fires**, so the app is alive and can show an error.
+- The synthetic `⌘C` is not delivered, silently. The clipboard count does not
+  move.
+
+Hence a direct requirement on ticket 03: **check the flag before capturing.**
+Without that check, secure input is indistinguishable from an empty selection,
+and the person is told "nothing is selected" where text is selected. That is
+exactly the silent failure ticket 03 exists to remove.
+
+## The clipboard: copying only the string will not do
+
+Found through a bug on a live clipboard. The prototype at first saved only
+`string(forType: .string)`, and a round run on top of a copied screenshot
+destroyed the image for good.
+
+A deep copy of every type solves it completely:
 
 ```swift
 originalItems = (NSPasteboard.general.pasteboardItems ?? []).map { item in
@@ -212,105 +216,111 @@ originalItems = (NSPasteboard.general.pasteboardItems ?? []).map { item in
 }
 ```
 
-Проверено на скриншоте с восемью типами разом, от `public.png` до TIFF и BMP.
-После круга все восемь на месте с теми же размерами.
+Checked on a screenshot carrying eight types at once, from `public.png` to TIFF
+and BMP. After the round all eight were there, at the same sizes.
 
-Подводный камень: `NSPasteboardItem` можно отдать буферу только один раз,
-поэтому снимок после восстановления непригоден и его надо делать заново на
-каждый круг.
+One catch: an `NSPasteboardItem` can be handed to the clipboard only once, so a
+snapshot is unusable after being restored and has to be taken afresh on every
+round.
 
-## Вставка без буфера обмена, и почему это важно
+## Pasting without the clipboard, and why it matters
 
-Опробован второй способ вставки: набор текста событиями через
-`keyboardSetUnicodeString` вместо `⌘V`. Набор заменяет выделение так же, как
-обычное печатание.
+A second way of pasting was tried: typing the text out as events through
+`keyboardSetUnicodeString` instead of `⌘V`. Typing replaces the selection just
+as ordinary typing does.
 
-Работает. Русский текст прошёл без потерь, выделение заменилось.
+It works. Russian text went through without loss and the selection was
+replaced.
 
-Ценность не в самой вставке, а в том, что она убирает единственную
-фиксированную задержку во всём круге. При вставке через `⌘V` буфер приходится
-держать занятым, пока целевое приложение его не прочитает, а узнать этот
-момент нечем: в прототипе там стояли выдуманные 300 мс. При наборе текста
-буфер после захвата больше не нужен никому, и восстанавливается он сразу:
+The value is not in the paste itself but in what it removes: the only fixed
+delay in the whole round. Pasting with `⌘V` means holding the clipboard busy
+until the target app has read it, and there is no way to learn when that
+happened: in the prototype an invented 300 ms sat there. When the text is typed
+out, nobody needs the clipboard after capture and it is restored at once:
 
 ```
-захвачено символов: 110
-буфер восстановлен: true
-буфер восстановлен сразу после захвата
+captured characters: 110
+clipboard restored: true
+clipboard restored immediately after capture
 ```
 
-**Рекомендация тикету 03:** сделать способ вставки переключаемым, по
-умолчанию `⌘V` как более быстрый и предсказуемый, набор текста как запасной
-путь для случаев, когда порча буфера неприемлема.
+**Recommendation for ticket 03:** make the paste method switchable, with `⌘V`
+as the default because it is faster and more predictable, and typing as the
+fallback for anyone who cannot accept the clipboard being disturbed.
 
-Что у этого способа не проверено: длинные тексты, скорость на них и поведение
-в приложениях кроме Slack.
+What was not checked about this method: long texts, how fast it is on them, and
+how it behaves in apps other than Slack.
 
-## Что осталось непроверенным
+## What was left unchecked
 
-- **Длинные тексты.** Все выделения в проверке были от 12 до 412 символов.
-  Ни таймаут буфера, ни скорость набора текста на абзацах не проверялись.
-- **Настоящие эмодзи как символы.** Круг с эмодзи проверен только в Slack, а
-  он подменяет их шорткодами, см. ниже. Через приложение, отдающее эмодзи
-  символом, набор текста не проверялся.
-- **Аккорд с железной клавиатуры.** См. границу в начале документа.
+- **Long texts.** Every selection in the session was between 12 and 412
+  characters. Neither the clipboard timeout nor the speed of typing was
+  measured on paragraphs.
+- **Real emoji as characters.** The round with emoji was checked only in Slack,
+  which substitutes shortcodes for them, see below. Typing was never checked
+  through an app that hands over an emoji as a character.
+- **The chord from a hardware keyboard.** See the boundary at the top of this
+  document.
 
-## Эмодзи в Slack ездят шорткодом, а не символом
+## Emoji travel through Slack as shortcodes, not characters
 
-Slack при копировании отдаёт эмодзи не символом, а шорткодом `:smile:`. Панель
-поэтому показывает шорткод: это ровно то, что нам дали. При вставке обратно
-Slack снова превращает его в картинку, так что эмодзи круг переживает.
+When copying, Slack hands over an emoji as the shortcode `:smile:` rather than
+as a character. So the panel shows a shortcode: that is exactly what we were
+given. On the way back Slack turns it into a picture again, so an emoji
+survives the round.
 
-Для тикета 04 это скорее хорошая новость. Правило промпта «Don't change emojis»
-применяется к обычному тексту `:smile:`, а его модель менять не станет. Но
-знать об этом надо: то, что пользователь видит как эмодзи, до модели доедет
-текстом, и приложения тут ведут себя по-разному.
+For ticket 04 this is good news, on balance. The prompt's rule "Don't change
+emojis" applies to ordinary text `:smile:`, which a model will not change. But
+it is worth knowing: what the person sees as an emoji reaches the model as
+text, and apps differ here.
 
-## Где круг проверен целиком
+## Where the round was checked end to end
 
-Полный круг, с заменой выделения на текст в верхнем регистре: **Slack, Google
+The full round, replacing the selection with upper-case text: **Slack, Google
 Chrome, Safari, Notes, Mail, HEY.**
 
-Ghostty использовался для проверки пустого выделения, Safari — для проверки
-защищённого ввода.
+Ghostty was used to check an empty selection, and Safari to check secure input.
 
-## Доступ Accessibility переживает пересборку
+## Accessibility access survives a rebuild
 
-Главное следствие тикета 01, проверенное опытом, а не только теорией.
+The main consequence of ticket 01, checked by experiment rather than theory
+alone.
 
-Designated requirement подписанного бандла не содержит хеша кода:
+The designated requirement of a signed bundle holds no code hash:
 
 ```
 designated => identifier "com.badta5te.GrammarFixer"
                and certificate leaf = H"3e7886e138c9c8b2c199f995291946ef4f64bb0d"
 ```
 
-Доступ выдан один раз, затем исходники менялись и бандл пересобирался около
-десяти раз. Хеш кода при этом изменился, `0512b39b3a5f17c4f49dddd709e2cca9cac081f0`
-до и `e354f3816b1b2a7f1cd9157fbb7c46a45df8c00d` после. Повторного запроса не
-было ни разу, `AXIsProcessTrusted()` после каждого перезапуска сразу возвращал
-`true`.
+Access was granted once, and then the sources were changed and the bundle
+rebuilt around ten times. The code hash did change,
+`0512b39b3a5f17c4f49dddd709e2cca9cac081f0` before and
+`e354f3816b1b2a7f1cd9157fbb7c46a45df8c00d` after. There was not one further
+prompt, and `AXIsProcessTrusted()` returned `true` immediately after every
+restart.
 
-Значит доступ привязан к паре «идентификатор плюс сертификат», а не к хешу, и
-выдаётся один раз за всё время разработки. Онбординг из тикета 03 может на это
-опираться.
+So access is tied to the pair of identifier and certificate rather than to the
+hash, and is granted once for the whole of development. The onboarding in
+ticket 03 can rely on that.
 
-Carbon `RegisterEventHotKey` доступа Accessibility не требует: хоткей
-регистрировался и срабатывал ещё до выдачи разрешения. Разрешение нужно только
-отправке событий.
+Carbon's `RegisterEventHotKey` needs no Accessibility access: the shortcut
+registered and fired before the permission was granted. The permission is
+needed only to send events.
 
-## Конфликты, которые стоит помнить
+## Conflicts worth remembering
 
-Хоткей `⇧⌃⌥⌘G` был занят той самой командой Raycast, ради замены которой всё
-и затевается. Наблюдалось следующее: `RegisterEventHotKey` вернул `noErr`, и
-наш хоткей срабатывал. Сработала ли при этом команда Raycast, не проверялось,
-на время испытаний её хоткей был выключен.
+The `⇧⌃⌥⌘G` shortcut was taken by the very Raycast command all this exists to
+replace. What was observed: `RegisterEventHotKey` returned `noErr`, and our
+shortcut fired. Whether Raycast's command fired as well was not checked; its
+shortcut was turned off for the duration of the experiments.
 
-Отсюда следует только то, что успешная регистрация не гарантирует
-эксклюзивности комбинации, и полагаться на код возврата как на детектор
-конфликта нельзя. Редактору хоткея из тикета 09 это стоит учесть.
+The only thing that follows is that a successful registration does not
+guarantee the combination is exclusive, and the return code cannot be relied on
+as a conflict detector. The shortcut editor in ticket 09 should take that into
+account.
 
-## Где лежит сам прототип
+## Where the prototype itself lives
 
-Ветка `spike/round-trip`, коммиты `dd3e6bf` и `1d54ca7`. В `main` кода
-прототипа нет.
+The `spike/round-trip` branch, commits `bff93c7` and `793d4bf`. None of the
+prototype's code is in `main`.

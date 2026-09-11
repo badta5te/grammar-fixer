@@ -1,172 +1,183 @@
 # GrammarFixer
 
-Нативная замена команде Raycast «Fix Spelling and Grammar». Выделяешь текст,
-жмёшь `⇧⌃⌥⌘G`, получаешь исправленный вариант и вставляешь его обратно.
-Провайдер и модель выбираются свободно, расходы считаются локально.
+A native replacement for Raycast's "Fix Spelling and Grammar" command. Select
+some text, press `⇧⌃⌥⌘G`, read the corrected version and put it back. The
+provider and the model are yours to choose, and what you spend is counted on
+your own machine.
 
-Сейчас работает круг целиком: хоткей забирает выделение, отправляет его модели
-и показывает исправленный текст в панели. Оттуда `⏎` вставляет его на место,
-`⌘⏎` кладёт в буфер обмена, `Esc` закрывает панель. Провайдер, модель, ключ,
-промпт и тема оформления меняются в окне настроек и действуют со следующего же
-нажатия хоткея. Интерфейс приложения на английском.
+The whole round trip works today: the shortcut takes your selection, sends it
+to a model and shows the corrected text in a panel. From there `⏎` pastes it
+back, `⌘⏎` puts it in the clipboard and `Esc` closes without doing anything.
+The provider, model, key, prompt and theme are changed in a settings window and
+take effect from the very next press of the shortcut.
 
-Выводы прототипа, на которых стоит круг, лежат в
+The prototype findings the round trip rests on are in
 [docs/round-trip-findings.md](docs/round-trip-findings.md).
 
-## Как это работает
+## How it works
 
-Выделяешь текст в любом приложении и жмёшь хоткей. Приложение посылает
-синтетический `⌘C`, дожидается подтверждённого изменения буфера обмена и
-отправляет текст модели. Ответ появляется в панели, и по `⏎` возвращается на
-место синтетическим `⌘V`. Буфер обмена восстанавливается после вставки со всеми
-типами, какие в нём были.
+Select text in any app and press the shortcut. The app sends a synthetic `⌘C`,
+waits for a confirmed change to the clipboard, and sends the text to a model.
+The answer appears in the panel, and `⏎` puts it back where it came from with a
+synthetic `⌘V`. The clipboard is restored afterwards with every type it held.
 
-Тихих отказов нет ни одного. Ничего не выделено или выделение пришло не
-текстом — звуковой сигнал, и только он: окно объясняло бы человеку то, что он
-и так видит, да ещё стоило бы ему лишнего действия. Доступ
-Accessibility отозван — снова экран выдачи доступа. Включён защищённый ввод,
-то есть где-то активно поле пароля, — сообщение с объяснением. Фокус не
-вернулся в исходное приложение — вставки не происходит вовсе, чтобы текст не
-уехал в чужое окно. Модель не ответила, ключ отвергнут, пропала связь —
-причина пишется прямо в панели, и `⏎` повторяет запрос. Круг занят предыдущим
-нажатием — тот же звуковой сигнал, потому что
-круг с моделью длится секунды, и молчание в ответ читается как поломка.
+There is not one silent failure left. Nothing selected, or a selection that did
+not arrive as text: a beep, and nothing more. A window would explain to someone
+what they can already see, and cost them an action to dismiss. Accessibility
+access revoked: the access screen again. Secure input on, meaning a password
+field is active somewhere: a message that says so. Focus that never came back
+to the source app: no paste at all, so the text cannot land in a stranger's
+window. No answer from the model, a refused key, a dropped connection: the
+reason is written in the panel, and `⏎` sends the request again. A round
+already running: the same beep, because a round with a model takes seconds and
+silence in reply reads as a broken app.
 
-## Панель результата
+## The result panel
 
-Панель появляется по центру того экрана, где курсор, и показывает ответ по мере
-его поступления. До первого куска видно ожидание: круг с моделью длится
-секунды, и пустое окно всё это время читается как поломка.
+The panel appears in the middle of whichever screen the cursor is on, and shows
+the answer as it arrives. Until the first piece lands it shows that it is
+waiting: a round with a model takes seconds, and an empty window for all that
+time reads as a breakage.
 
-- `⏎` вставляет результат туда, откуда пришёл текст.
-- `⌘⏎` кладёт результат в буфер обмена и ничего не вставляет. Прежнее
-  содержимое буфера при этом не возвращается: занять буфер и есть вся просьба.
-- `Esc` закрывает панель, не вставив ничего. Буфер обмена возвращается на
-  место, но только если за время показа панели его никто не трогал: своя свежая
-  копия дороже нашего снимка.
+- `⏎` pastes the result back where the text came from.
+- `⌘⏎` puts the result in the clipboard and pastes nothing. What was in the
+  clipboard before is not put back: taking the clipboard over is the whole of
+  what was asked for.
+- `Esc` closes the panel having pasted nothing. The clipboard goes back to what
+  it was, but only if nobody touched it while the panel stood open: somebody's
+  own fresh copy is worth more than our snapshot.
 
-Показывается текст по мере получения, а вставляется тот, что пришёл целиком и
-прошёл очистку. Разница видна редко: преамбулу и кавычки можно узнать только в
-законченном ответе.
+The text shown is the text as it arrives; the text pasted is the one that came
+whole and was cleaned up. The difference is rarely visible, because a preamble
+or a pair of quotes can only be recognised in a finished answer.
 
-Закрытая панель останавливает и сам запрос. Ответ, который никто не читает,
-всё равно оплачивается.
+Closing the panel also stops the request. An answer nobody will read is still
+paid for.
 
-Подвал называет модель и считает символы и слова. Расход из тикета 07 и число
-изменений из тикета 08 встанут туда же.
+The footer names the model and counts characters and words. Spending from
+ticket 07 and the number of changes from ticket 08 will go there too.
 
-## Провайдер и ключ
+## Provider and key
 
-Пункт меню `Settings…` открывает окно настроек. Провайдер выбирается из списка,
-модель вписывается руками, ключ вставляется в поле и ложится в Keychain. Всё
-применяется в тот же момент: следующее нажатие хоткея идёт уже к новому
-провайдеру, перезапускать ничего не нужно. Кнопки «сохранить» нет намеренно —
-иначе появилось бы второе состояние, наполовину применённое, и кнопка проверки
-ключа проверяла бы непонятно что.
+The `Settings…` menu item opens the settings window. The provider is picked
+from a list, the model is typed in, and the key is pasted into a field and goes
+to the Keychain. Everything applies the moment it is changed: the next press of
+the shortcut already goes to the new provider, with nothing to restart. There
+is deliberately no Save button, or there would be a second, half-applied state
+to reason about, and the button that checks the key would not know which of the
+two it was checking.
 
-Пресеты: OpenAI, Anthropic, DeepSeek, OpenRouter, Groq и запись «свой
-OpenAI-совместимый адрес» для всего остального — другого провайдера или модели,
-поднятой на этой же машине. Пресет задаёт адрес, набор известных имён моделей и
-адаптер. Поле модели при этом остаётся свободным: провайдеры переименовывают
-модели чаще, чем выходят версии приложения, поэтому список рядом с полем —
-подсказка, а не выбор за человека.
+The presets are OpenAI, Anthropic, DeepSeek, OpenRouter, Groq, and an entry for
+your own OpenAI-compatible address, which covers everything else: another
+provider, or a model running on this very machine. A preset supplies the
+address and the adapter. The model field stays free to type in: providers
+rename models far more often than this app is released.
 
-Ключ и имя модели хранятся отдельно для каждого провайдера. Неделя на DeepSeek
-не должна стоить ключа от OpenAI, а имя модели принадлежит тому провайдеру, для
-которого его вписали: `claude-haiku` уйдёт в DeepSeek и будет отвергнут, причём
-отказ обвинит ключ, а не модель, и человек пойдёт чинить не то.
+The key and the model name are kept separately for each provider. A week on
+DeepSeek should not cost you your OpenAI key, and a model name belongs to the
+provider it was typed for: `claude-haiku` sent to DeepSeek is refused, and the
+refusal blames the key rather than the model, so you would go and fix the wrong
+thing.
 
-Ключи лежат в Keychain, по записи `generic password` на провайдера, служба
-`com.badta5te.GrammarFixer`. В `defaults read com.badta5te.GrammarFixer` ключа
-нет и не появится.
+Keys live in the Keychain, one `generic password` entry per provider, under the
+service `com.badta5te.GrammarFixer`. There is no key in
+`defaults read com.badta5te.GrammarFixer`, and there never will be.
 
-Ключ в окне стоит выше модели, потому что список моделей без ключа не
-загрузить. Кнопка `Check` это учитывает: пока модель не выбрана, она проверяет
-ключ запросом списка моделей — такой же запрос с авторизацией — и сразу отдаёт
-список в меню рядом с полем. Когда модель выбрана, уходит короткое исправление,
-оборванное на первом же куске ответа, чтобы не платить за остальное. Отвечает
-кнопка либо «ключ работает», либо конкретным отказом провайдера: неверный ключ и
-неверное имя модели выглядят по-разному и лечатся по-разному.
+The key field sits above the model field, because the list of models cannot be
+loaded without a key. The `Check` button follows the same order: while no model
+has been chosen it proves the key by asking for the list of models, which is an
+authenticated request like any other, and hands the list straight to the menu
+beside the field. Once a model is chosen it sends a short correction instead,
+cut off at the first piece of the answer so the rest is never paid for. It
+answers either "the key works" or with the provider's own refusal: a wrong key
+and a wrong model name look different and are fixed differently.
 
-Список моделей приложение не знает и знать не хочет. Любой зашитый список
-устареет в тот день, когда провайдер переименует модель, и обновлять его руками
-пришлось бы ровно тому человеку, который затеял всё это, чтобы такой работы не
-делать. Кнопка рядом с полем спрашивает список у провайдера тем ключом, который
-уже введён, сортирует новые вперёд, обрезает до полусотни и выбрасывает модели,
-которые заведомо не пишут текст: транскрипцию, синтез речи, картинки,
-эмбеддинги. Поле остаётся свободным, так что ошибка фильтра ничего не ломает.
+The app knows no model names and wants to know none. Any list written into it
+goes stale the day a provider renames something, and keeping it current by hand
+would fall to exactly the person who started all this to avoid such work. The
+button beside the field asks the provider, with the key already entered, sorts
+the newest first, cuts the list to fifty and drops the models that plainly
+cannot write text: transcription, speech, images, embeddings. The field stays
+free to type in, so a mistake in that filter breaks nothing.
 
-Обрыв ответа на середине считается отказом, а не ответом. У Anthropic потолок
-ответа ставит само приложение, у остальных — провайдер, но исход одинаковый:
-обрезанное исправление, вставленное поверх выделения, съело бы хвост чужого
-текста. Поэтому `stop_reason: max_tokens` и `finish_reason: length` поднимают
-ошибку, и выделение остаётся нетронутым.
+An answer cut off part way through counts as a refusal, not as an answer. With
+Anthropic the ceiling on the answer is set by this app, with everyone else by
+the provider, but the outcome is the same: half a correction pasted over a
+selection would eat the tail of somebody's own text. So `stop_reason:
+max_tokens` and `finish_reason: length` raise an error, and the selection is
+left alone.
 
-Адаптеров два, третий не нужен. OpenAI-совместимый `/chat/completions`
-покрывает OpenAI, DeepSeek, OpenRouter, Groq и локальные серверы. У Anthropic
-собственный `/v1/messages`: ключ уходит отдельным заголовком, потолок ответа
-обязателен и считается от длины запроса, а расход токенов приходит двумя
-событиями — сколько прочитано в начале, сколько написано в конце. Оба числа
-копятся и отдаются одним разом, иначе счётчику расходов досталось бы только
-последнее, а прочитанное обнулилось бы.
+There are two adapters and no need for a third. The OpenAI-compatible
+`/chat/completions` covers OpenAI, DeepSeek, OpenRouter, Groq and local
+servers. Anthropic has its own `/v1/messages`: the key goes in a header of its
+own, a ceiling on the answer is mandatory and is worked out from the length of
+the request, and token usage arrives in two events, how much was read at the
+start and how much written at the end. Both numbers are added up and handed
+over at once, or the spending counter would get only the last one and the
+amount read would be zeroed.
 
-Необязательные поля запроса понимают не все OpenAI-совместимые серверы, и
-некоторые отвечают отказом на весь запрос. Такой отказ приложение переживает
-само, повторяя запрос без них. У Anthropic повтора нет: там отбрасывать нечего,
-потолок ответа обязателен.
+Not every OpenAI-compatible server understands the optional fields of the
+request, and some refuse the whole call over one of them. The app survives that
+by itself, retrying without them. Anthropic gets no retry: there is nothing to
+drop, because the ceiling on the answer is mandatory.
 
-Переменные окружения `GRAMMARFIXER_API_KEY`, `GRAMMARFIXER_MODEL`,
-`GRAMMARFIXER_BASE_URL` и `GRAMMARFIXER_PROVIDER` по-прежнему перекрывают всё
-остальное — это удобно при запуске из терминала. Перекрытое поле окно показывает
-выключенным и подписывает, какая переменная его заняла: окно, показывающее одно,
-пока запросы уходят с другим, хуже, чем отсутствие окна.
+The environment variables `GRAMMARFIXER_API_KEY`, `GRAMMARFIXER_MODEL`,
+`GRAMMARFIXER_BASE_URL` and `GRAMMARFIXER_PROVIDER` still override everything
+else, which is handy when launching from a terminal. A field that has been
+overridden is shown disabled, with a note naming the variable that took it
+over: a window showing one thing while requests go out with another is worse
+than no window at all.
 
-Файл `~/.config/grammar-fixer/config.json` из тикета 04 больше не читается на
-каждом круге. При первом запуске после этого тикета его содержимое переносится в
-настройки и Keychain один раз, о чём появляется строка в журнале. Сам файл не
-меняется и не удаляется: это чужой ключ, и приложению нечего с ним делать.
+The file `~/.config/grammar-fixer/config.json` from ticket 04 is no longer read
+on every round. On the first launch after that its contents are carried over
+into the settings and the Keychain, once, and a line about it appears in the
+log. The file itself is neither changed nor removed: it holds somebody's key,
+and this app has no business with it.
 
-Промпт хранится одним куском и заканчивается якорем `Rewritten text:`. Якорь
-делает настоящую работу: он подавляет «Here is the corrected text:» у слабых
-моделей. Что модель всё же добавила сверх текста — преамбулу, кавычки,
-ограждения кода — снимается при разборе ответа, но только если этого не было в
-исходном тексте.
+The prompt is kept whole and ends with the anchor `Rewritten text:`. The anchor
+does real work: it suppresses "Here is the corrected text:" in weaker models.
+Whatever a model adds beyond the text anyway, a preamble, quotes, code fences,
+is stripped when the answer is parsed, but only if it was not in the original.
 
-Промпт правится в настройках, кнопка возвращает исходный. `{selection}`
-заменяется выделенным текстом. Шаблон, потерявший этот плейсхолдер, отправил бы
-модели запрос вообще без текста, а ответ на него встал бы на место чужого
-выделения, поэтому такой шаблон не используется: берётся исходный, и окно
-говорит об этом прямо во время правки. Возврат к исходному промпту не
-запоминает его копию, а забывает настройку, поэтому улучшенный промпт в будущей
-версии дойдёт до всех, кто свой не менял.
+The prompt is edited in the settings, and a button brings the original back.
+`{selection}` is replaced with the selected text. A template that has lost that
+placeholder would send the model a request with no text in it at all, and the
+answer to that would take the place of somebody's selection, so such a template
+is not used: the original stands in, and the window says so while it is being
+typed. Going back to the original does not store a copy of it but forgets the
+setting, so an improved prompt in a later version reaches everybody who never
+changed theirs.
 
-Запись в Keychain создаёт и читает само приложение, поэтому у подписанного
-стабильным сертификатом приложения macOS ничего не спрашивает. При разработке
-запрос пароля всё же появляется: самоподписанный сертификат недоверенный,
-система не может сверить подпись по цепочке и запоминает конкретный бинарник, а
-каждая пересборка даёт новый. Чтобы это прекратить, сертификат `GrammarFixer
-Dev` надо один раз пометить в Keychain Access как Always Trust для Code Signing.
+The Keychain entry is created and read by the app itself, so a release signed
+with a stable certificate is never asked about it. During development the
+password prompt does appear: a self-signed certificate is untrusted, the system
+cannot check the signature against a chain and remembers the exact binary
+instead, and every rebuild produces a new one. To stop it, mark the
+`GrammarFixer Dev` certificate as Always Trust for Code Signing in Keychain
+Access, once.
 
-## Разрешения
+## Permissions
 
-Приложению нужен доступ Accessibility, причём для отправки событий, а не для
-чтения. Хоткей регистрируется и срабатывает без него, а вот `⌘C` и `⌘V` без
-него не доставляются.
+The app needs Accessibility access, and it needs it in order to send events
+rather than to read anything. The shortcut registers and fires without it, but
+`⌘C` and `⌘V` are not delivered.
 
-Экран выдачи доступа появляется при первом запуске и по пункту меню
-`Accessibility Access…`. Состояние доступа проверяется перед каждым кругом:
-отзыв приложение замечает сразу, перезапуск не нужен.
+The access screen appears on the first launch and from the `Accessibility
+Access…` menu item. Access is checked before every round, so a revocation is
+noticed at once and needs no restart.
 
-## Настройки
+## Settings
 
-Окно открывается пунктом `Settings…`. Тема оформления — светлая, тёмная или
-системная — применяется к уже открытым окнам сразу, потому что ставится на
-приложение целиком, а не на каждое окно. Тема вынесена в настройки не ради
-украшения: окна этого приложения появляются поверх чужих и ненадолго, и вечно
-светлая панель поверх тёмного редактора бьёт по глазам.
+The window opens from the `Settings…` menu item. The theme, light, dark or
+whatever the system is doing, applies to windows that are already open,
+because it is set on the application rather than on each window. The theme is a
+setting rather than decoration: this app's windows appear over other people's
+and stay for seconds, and a permanently light panel over a dark editor is hard
+on the eyes.
 
-Два переключателя вставки продублированы в меню, потому что до них иногда
-удобнее дотянуться, не открывая окна. То же самое переключается из терминала:
+Two of the paste switches are repeated in the menu, because reaching them
+without opening a window is sometimes easier. The same things can be switched
+from a terminal:
 
 ```
 defaults write com.badta5te.GrammarFixer RestoreClipboardAfterPaste -bool false
@@ -177,112 +188,118 @@ defaults write com.badta5te.GrammarFixer Provider anthropic
 defaults write com.badta5te.GrammarFixer Model.anthropic claude-haiku-4-5-20251001
 ```
 
-- `RestoreClipboardAfterPaste` — возвращать ли буфер обмена после вставки.
-  Восстановление не бывает полным: обещанные и отложенные типы буфера глубокой
-  копии не поддаются, потому что данных у них ещё нет. Выключатель существует
-  ровно для тех, кому это неприемлемо.
-- `PasteMethod` — `clipboard` вставляет через `⌘V`, `typing` набирает текст
-  событиями и буфер обмена не трогает вовсе.
-- `WriteLog` — журнал круга в `~/Library/Logs/GrammarFixer.log`. Содержимое
-  выделения в него не попадает никогда, только длина.
-- `Theme` — `system`, `light` или `dark`.
-- `Provider`, `Model.<провайдер>`, `BaseURL`, `RequestUsage`, `Reasoning` —
-  то же, что в окне. Ключа среди них нет: он в Keychain.
+- `RestoreClipboardAfterPaste` — whether to put the clipboard back after
+  pasting. Restoring is never complete: promised and lazy clipboard types
+  cannot be deep-copied, because they hold no data yet. The switch exists for
+  anybody who finds that unacceptable.
+- `PasteMethod` — `clipboard` pastes with `⌘V`, `typing` types the text out as
+  events and never touches the clipboard.
+- `WriteLog` — the round's log in `~/Library/Logs/GrammarFixer.log`. What was
+  selected never reaches it, only how long it was.
+- `Theme` — `system`, `light` or `dark`.
+- `Provider`, `Model.<provider>`, `BaseURL`, `RequestUsage`, `Reasoning` — the
+  same things as in the window. There is no key among them: it is in the
+  Keychain.
 
-## Требования
+## Requirements
 
-- macOS 14 или новее
-- Swift 6, входит в Command Line Tools
-- Xcode для запуска тестов: XCTest не входит в Command Line Tools
+- macOS 14 or newer
+- Swift 6, which ships with the Command Line Tools
+- Xcode to run the tests: XCTest is not part of the Command Line Tools
 
-Полный Xcode нужен только тестам. Приложение собирается и работает на одних
-Command Line Tools. Переключать `xcode-select` не требуется: `make` сам
-использует тулчейн Xcode через переменную окружения, если Xcode установлен.
+A full Xcode is needed only by the tests. The app builds and runs on the
+Command Line Tools alone. There is no need to switch `xcode-select`: `make`
+points at Xcode's toolchain through an environment variable when Xcode is
+installed.
 
-## Сборка и запуск
+## Building and running
 
 ```
-make run      # собрать, упаковать, подписать и запустить
-make bundle   # только собрать бандл
-make release  # то же в релизной конфигурации
-make verify   # показать, чем подписан бандл и какие у него права
-make test     # прогнать тесты
+make run      # build, bundle, sign and launch
+make bundle   # build the bundle only
+make release  # the same in the release configuration
+make verify   # show what the bundle is signed with and its entitlements
+make test     # run the tests
 make clean
 ```
 
-Готовое приложение лежит в `build/GrammarFixer.app`.
+The finished app is at `build/GrammarFixer.app`.
 
-## Подпись
+## Signing
 
-macOS привязывает выданный доступ Accessibility к паре «путь плюс подпись».
-При ad-hoc подписи хеш кода меняется от сборки к сборке, поэтому доступ
-приходится выдавать заново после каждой сборки. Чтобы этого не было, нужен
-постоянный самоподписанный сертификат. Создаётся он один раз вручную:
+macOS ties granted Accessibility access to the pair of path and signature. With
+an ad-hoc signature the code hash changes from build to build, so access has to
+be granted again after every build. A permanent self-signed certificate stops
+that. It is made once, by hand:
 
-1. Открыть Keychain Access.
-2. Меню `Keychain Access` → `Certificate Assistant` → `Create a Certificate…`
-   Это меню приложения в самом верху экрана, рядом с яблоком.
-3. Заполнить диалог:
+1. Open Keychain Access.
+2. Menu `Keychain Access` → `Certificate Assistant` → `Create a Certificate…`
+   That is the application menu at the very top of the screen, next to the
+   apple.
+3. Fill the dialog in:
    - `Name`: `GrammarFixer Dev`
    - `Identity Type`: `Self Signed Root`
    - `Certificate Type`: `Code Signing`
-   - галочку `Let me override defaults` не ставить
-4. `Create`, затем `Continue` на предупреждение о самоподписанном сертификате,
-   затем `Done`.
-5. Пересобрать: `make run`. Вывод должен закончиться строкой
-   `Подписано: GrammarFixer Dev`.
+   - leave `Let me override defaults` unchecked
+4. `Create`, then `Continue` past the warning about a self-signed certificate,
+   then `Done`.
+5. Build again with `make run`. The output should end with the line
+   `Signed with: GrammarFixer Dev`.
 
-Сертификат будет числиться недоверенным, и `security find-identity -v` его не
-покажет. Это нормально и ничего делать не нужно: для локальной подписи доверие
-не требуется, `codesign` с ним работает. Выставлять `Always Trust` не надо.
+The certificate counts as untrusted, and `security find-identity -v` will not
+list it. That is normal and needs nothing done about it as far as signing goes:
+local signing needs no trust and `codesign` works with it. Marking it Always
+Trust is worth doing only to stop the Keychain asking for a password on every
+rebuild, as described above.
 
-Проверить результат: `make verify` покажет `Authority=GrammarFixer Dev` вместо
-`Signature=adhoc`.
+Check the result with `make verify`: it should show `Authority=GrammarFixer
+Dev` instead of `Signature=adhoc`.
 
-Хеш кода при этом всё равно меняется от сборки к сборке, стоит тронуть
-исходники. Доступ переживает пересборку не поэтому, а потому что designated
-requirement подписанного бандла ссылается на идентификатор и сертификат, а не
-на хеш:
+The code hash still changes from build to build, as soon as a source file is
+touched. Access survives a rebuild not because of the hash but because the
+designated requirement of a signed bundle points at the identifier and the
+certificate:
 
 ```
 designated => identifier "com.badta5te.GrammarFixer"
                and certificate leaf = H"..."
 ```
 
-Проверено опытом, подробности в
+Found by experiment; the details are in
 [docs/round-trip-findings.md](docs/round-trip-findings.md).
 
-Если нужен другой сертификат, его имя передаётся через переменную окружения:
+For a different certificate, pass its name through an environment variable:
 
 ```
-SIGN_IDENTITY="Моё имя сертификата" make run
+SIGN_IDENTITY="My certificate name" make run
 ```
 
-Без сертификата сборка не падает, а печатает предупреждение и подписывает
-ad-hoc. Для разработки этого хватает, просто доступ придётся выдавать чаще.
+Without a certificate the build does not fail. It prints a warning and signs
+ad-hoc, which is enough for development, except that access has to be granted
+more often.
 
-## Устройство проекта
+## How the project is laid out
 
 ```
-Sources/GrammarFixer/       точка входа, ничего больше
-Sources/GrammarFixerCore/   весь код приложения
-  App/                      делегат, меню-бар, оркестровка круга
-  Hotkey/                   глобальный хоткей через Carbon
-  TextIO/                   захват, вставка, буфер, разрешения
-  LLM/                      промпт, два адаптера провайдеров, разбор ответа
-  Settings/                 настройки поверх UserDefaults, ключи в Keychain
-  UI/                       окна приложения-агента
-  Support/                  журнал
-Resources/Info.plist        описание бандла, собирается руками, не Xcode
-scripts/bundle.sh           сборка .app и подпись
-Tests/                      тесты
-docs/                       выводы прототипов
+Sources/GrammarFixer/       the entry point, nothing else
+Sources/GrammarFixerCore/   all of the app's code
+  App/                      the delegate, the menu bar, the round trip
+  Hotkey/                   the global shortcut, through Carbon
+  TextIO/                   capture, paste, the clipboard, permissions
+  LLM/                      the prompt, two provider adapters, parsing answers
+  Settings/                 settings over UserDefaults, keys in the Keychain
+  UI/                       the windows of an agent app
+  Support/                  the log
+Resources/Info.plist        the bundle description, written by hand, not Xcode
+scripts/bundle.sh           assembling the .app and signing it
+Tests/                      the tests
+docs/                       prototype findings
 ```
 
-Код разделён на исполняемый таргет и библиотеку не ради красоты: модуль с
-точкой входа нельзя импортировать из тестов, поэтому в исполняемом таргете
-лежит только запуск.
+The code is split into an executable target and a library not for elegance: a
+module with an entry point cannot be imported from tests, so the executable
+target holds nothing but the launch.
 
-Приложение помечено в `Info.plist` как агент, поэтому не появляется ни в доке,
-ни в переключателе приложений. App Sandbox намеренно не включён: он ломает и
-чтение выделенного текста в чужих приложениях, и отправку событий.
+The app is marked as an agent in `Info.plist`, so it appears neither in the
+Dock nor in the app switcher. App Sandbox is deliberately off: it breaks both
+reading selected text in other apps and sending events.
