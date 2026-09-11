@@ -128,6 +128,22 @@ final class RoundTripControllerTests: XCTestCase {
         XCTAssertTrue(recorder.events.contains("paste"))
     }
 
+    /// A selection that did not arrive as text gets the same beep as an empty
+    /// one. A window would explain what the person can already see and would
+    /// cost them a click to dismiss.
+    func testSelectionThatIsNotTextBeepsWithoutAWindow() async {
+        clock.onTick = { [clipboard] tick in
+            if tick == 3 { clipboard!.simulateCopy(nil) }
+        }
+        makeController().run()
+        await settle()
+
+        XCTAssertEqual(environment.beeps, 1)
+        XCTAssertTrue(notices.shown.isEmpty)
+        XCTAssertEqual(clipboard.restored?.items.count, 1)
+        XCTAssertTrue(transform.received.isEmpty)
+    }
+
     func testDeniedAccessLeadsToOnboardingInsteadOfSilence() async {
         environment.isAccessibilityTrusted = false
         makeController().run()

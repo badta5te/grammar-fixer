@@ -122,10 +122,15 @@ public final class RoundTripController {
             }
 
         case .unsupportedSelection:
+            // The same beep as an empty selection, on purpose. A window here
+            // would explain what the person can already see, and cost them a
+            // click to put away. Which of the two cases it was stays in the
+            // log, where it is diagnosis rather than news.
+            Log.write("выделение не пришло текстом")
+            environment.beep()
             if settings.restoreClipboardAfterPaste {
                 clipboard.restore(result.snapshot)
             }
-            notices.show(RoundTripError.unsupportedSelection)
 
         case .captured(let text):
             await fix(text, in: sourceApp, snapshot: result.snapshot)
