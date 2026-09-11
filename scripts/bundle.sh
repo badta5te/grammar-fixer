@@ -26,7 +26,10 @@ cp Resources/Info.plist "${APP}/Contents/Info.plist"
 # не покроет Info.plist.
 if [ -n "${SIGN_IDENTITY:-}" ]; then
     identity="$SIGN_IDENTITY"
-elif security find-identity -v -p codesigning 2>/dev/null | grep -qF "$DEV_IDENTITY"; then
+# Без -v намеренно: свежий самоподписанный сертификат числится недоверенным,
+# и с -v он бы не нашёлся. Для локальной подписи доверие не требуется,
+# codesign с ним работает.
+elif security find-identity -p codesigning 2>/dev/null | grep -qF "$DEV_IDENTITY"; then
     identity="$DEV_IDENTITY"
 else
     identity="-"
