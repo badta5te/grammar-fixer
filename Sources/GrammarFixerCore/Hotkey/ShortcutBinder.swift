@@ -49,6 +49,21 @@ public final class ShortcutBinder {
     /// granted, so the press reaches us and the onboarding screen can be
     /// shown instead of nothing happening.
     public func start() {
+        // A combination that was free when it was chosen can be handed to
+        // macOS in System Settings any day after. Carbon answers noErr for one
+        // the system owns, so the key registers and then quietly never fires,
+        // and reading what the system holds is the only way to say so. Doing
+        // that only where the combination is recorded would cover the day it
+        // was chosen and no day since.
+        if let refusal = ShortcutCheck.run(shortcut, takenBy: systemShortcuts()) {
+            Log.write("the stored shortcut \(shortcut.display) is no longer free: \(refusal.rawValue)")
+            // Taken all the same. What the system owns is read out of a
+            // preference file nobody promised us, and a misread that refused to
+            // bind would cost a working shortcut to save a warning — the
+            // lopsided way round.
+            notices.show(refusal.notice(for: shortcut))
+        }
+
         guard bind(shortcut) else {
             // Without this the person gets an app that simply does nothing and
             // no way to find out why. It does not catch every conflict: the
@@ -77,7 +92,21 @@ public final class ShortcutBinder {
         guard bind(new) else {
             // The old combination back rather than none: it was working a
             // moment ago, and the refusal already says what happened.
-            _ = bind(old)
+            guard bind(old) else {
+                // Both gone, which is the one way out of here that ends with
+                // no shortcut at all. The refusal returned below is shown
+                // beside the field and speaks only about the combination that
+                // was just recorded, so nothing in it would tell anybody that
+                // the one they had is gone as well.
+                Log.write("neither \(new.display) nor \(old.display) could be registered")
+                notices.show(Notice(
+                    title: "\(AppInfo.name) has no shortcut right now",
+                    message: "\(new.display) was refused, and \(old.display) could not be taken "
+                        + "back either. Record another combination, or restart \(AppInfo.name) "
+                        + "to try \(old.display) again."
+                ))
+                return .refusedByTheSystem
+            }
             return .refusedByTheSystem
         }
         settings.shortcut = new

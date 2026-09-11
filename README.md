@@ -289,10 +289,18 @@ Three different ways a combination can be refused, and the difference matters:
   and it would fire in the middle of a word.
 - One macOS keeps for itself. Those are read out of the system's own
   preferences, because Carbon answers "registered" for a combination the system
-  already owns and the shortcut would then quietly never fire.
+  already owns and the shortcut would then quietly never fire. The same reading
+  happens at launch, since a combination that was free the day it was chosen
+  can be given to macOS in System Settings any day after. At launch it is a
+  warning rather than a refusal: the preference file is nobody's promise, and a
+  misread that unregistered a working shortcut would cost more than a warning
+  that was not needed.
 - One Carbon refuses outright, which means another app holds it. The
   combination that was working stays in place rather than leaving the app with
-  no way in at all.
+  no way in at all. If even that cannot be taken back — another app can have
+  grabbed it while the window stood open — the app says so in as many words,
+  because the refusal shown beside the field speaks only about the combination
+  just recorded.
 
 What cannot be found out in advance is a combination another app grabs first
 while leaving Carbon satisfied — the prototype hit exactly that with Raycast.
@@ -301,7 +309,10 @@ Nothing detects it; pressing the keys does.
 While the field is listening, the hot key is given back to the system. A global
 hot key fires wherever the keyboard is pointing, this app's own window
 included, so without that the old combination would start a round instead of
-being replaced.
+being replaced. It is taken again when the field stops listening, and also when
+the window closes: closing a window does not make the field inside it resign,
+so without asking there the key would stay given back and the app would have no
+way in until the next launch.
 
 ### Starting at login
 

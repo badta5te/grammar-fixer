@@ -135,6 +135,71 @@ final class ShortcutBinderTests: XCTestCase {
         XCTAssertTrue(notices.shown.first?.title.contains("⌃⌥⇧⌘G") ?? false)
     }
 
+    /// Both combinations refused is the one case that ends with no shortcut at
+    /// all: the new one is not to be had, and the one that was working a moment
+    /// ago has been given back and cannot be taken again. The refusal shown
+    /// beside the field only speaks about the new combination, so the news that
+    /// the old one is gone too has to be said out loud.
+    func testBothTheNewAndTheOldCombinationRefusedIsSomethingToRead() {
+        let binder = makeBinder()
+        binder.start()
+        registrar.refuses = [chosen, .default]
+
+        XCTAssertEqual(binder.apply(chosen), .refusedByTheSystem)
+
+        XCTAssertEqual(registrar.liveCount, 0)
+        registrar.press()
+        XCTAssertEqual(rounds, 0)
+        XCTAssertEqual(notices.shown.count, 1)
+    }
+
+    /// A combination recorded while it was free can be given to macOS in System
+    /// Settings months later. Carbon answers noErr for one of those, so the
+    /// registration succeeds and the key then quietly never fires. Reading what
+    /// the system owns is the only way to say so, and launch is where it has to
+    /// be read: `apply` alone covers the day it was chosen and no day after.
+    func testAStoredCombinationTheSystemHasSinceTakenIsSomethingToRead() {
+        settings.shortcut = chosen
+        let binder = makeBinder(system: [chosen])
+
+        binder.start()
+
+        XCTAssertEqual(notices.shown.count, 1)
+        XCTAssertTrue(notices.shown.first?.title.contains("macOS already uses") ?? false)
+        // Registered all the same. What the system owns is read out of a plist
+        // nobody promised us, and a misread that unregistered a working
+        // shortcut would cost more than a warning nobody needed.
+        XCTAssertEqual(registrar.events, ["register ⌥⌘J"])
+    }
+
+    /// Nothing fires while the field is listening. The combination reaching the
+    /// round instead of the editor is the whole reason the key is given back.
+    func testNoRoundStartsWhileTheFieldIsListening() {
+        let binder = makeBinder()
+        binder.start()
+
+        binder.suspend()
+        registrar.press()
+
+        XCTAssertEqual(rounds, 0)
+        XCTAssertEqual(registrar.liveCount, 0)
+    }
+
+    /// The key can be gone by the time it is asked for back: another app may
+    /// have taken it while the window stood open. Silence there is an app whose
+    /// only way in has disappeared without a word.
+    func testTheKeyBeingGoneWhenItIsAskedForBackIsSomethingToRead() {
+        let binder = makeBinder()
+        binder.start()
+        binder.suspend()
+        registrar.refuses = [.default]
+
+        binder.resume()
+
+        XCTAssertEqual(registrar.liveCount, 0)
+        XCTAssertEqual(notices.shown.count, 1)
+    }
+
     /// While the editor is listening for a keypress, a registered hot key
     /// would swallow the very combination somebody is trying to record: a
     /// global hot key fires wherever the keyboard is pointing, our own window
@@ -163,7 +228,17 @@ final class FakeHotKeyRegistrar {
     private(set) var events: [String] = []
     /// Combinations the system will not hand over.
     var refuses: Set<Shortcut> = []
-    private var actions: [() -> Void] = []
+    /// What the system thinks we hold right now, newest last. A registration
+    /// drops out of here when it is given back, so that a press can tell one
+    /// that is live from one that was live a moment ago. Without that the
+    /// double a test leans on would report a working shortcut where there is
+    /// none, which is the one answer worth having.
+    private var live: [(id: Int, action: () -> Void)] = []
+    private var registrations = 0
+
+    /// How many hot keys are held. Never above one while the binder is doing
+    /// its job, and zero is the state the binder promises never to be left in.
+    var liveCount: Int { live.count }
 
     func register(_ shortcut: Shortcut, _ action: @escaping () -> Void) -> (any HotKeyHandle)? {
         guard !refuses.contains(shortcut) else {
@@ -171,29 +246,37 @@ final class FakeHotKeyRegistrar {
             return nil
         }
         events.append("register \(shortcut.display)")
-        actions.append(action)
-        return FakeHotKey(shortcut: shortcut, registrar: self)
+        registrations += 1
+        live.append((registrations, action))
+        return FakeHotKey(id: registrations, shortcut: shortcut, registrar: self)
     }
 
-    func letGo(of shortcut: Shortcut) {
+    /// Giving the same one back twice is not an event: a real hot key can be
+    /// invalidated again without the system hearing about it.
+    func letGo(_ id: Int, _ shortcut: Shortcut) {
+        guard let index = live.firstIndex(where: { $0.id == id }) else { return }
+        live.remove(at: index)
         events.append("invalidate \(shortcut.display)")
     }
 
-    /// Fires whatever is registered now.
+    /// Fires the registration the press would reach, and nothing at all when
+    /// nothing is registered.
     func press() {
-        actions.last?()
+        live.last?.action()
     }
 }
 
 @MainActor
 private final class FakeHotKey: HotKeyHandle {
+    private let id: Int
     private let shortcut: Shortcut
     private weak var registrar: FakeHotKeyRegistrar?
 
-    init(shortcut: Shortcut, registrar: FakeHotKeyRegistrar) {
+    init(id: Int, shortcut: Shortcut, registrar: FakeHotKeyRegistrar) {
+        self.id = id
         self.shortcut = shortcut
         self.registrar = registrar
     }
 
-    func invalidate() { registrar?.letGo(of: shortcut) }
+    func invalidate() { registrar?.letGo(id, shortcut) }
 }

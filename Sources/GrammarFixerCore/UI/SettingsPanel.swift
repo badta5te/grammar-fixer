@@ -61,8 +61,16 @@ public final class SettingsPanel: NSObject, NSWindowDelegate {
         self.panel = panel
     }
 
+    /// The window can go while the shortcut field is still listening, and
+    /// closing a window does not make its first responder resign — verified
+    /// against a panel built the same way as this one. The field's own way of
+    /// noticing therefore never fires, the hot key stays given back with nobody
+    /// left to take it again, and the app's only way in is dead until the next
+    /// launch. Asking for it here costs nothing when it was never let go:
+    /// taking a key that is still held does nothing at all.
     public func windowWillClose(_ notification: Notification) {
         panel = nil
+        shortcut.resume()
     }
 }
 
