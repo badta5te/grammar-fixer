@@ -21,6 +21,15 @@ public final class CorrectionSession {
     public private(set) var state: State = .waiting
     public private(set) var model: String = ""
 
+    /// What the model changed, once there is a whole answer to compare.
+    ///
+    /// Nil until then, and nil again on a retry. A partial answer has nothing
+    /// to compare against — the words still to arrive would look like words the
+    /// model deleted — and highlighting that rearranged itself with every piece
+    /// would be unreadable. So it is computed once, when the answer lands, and
+    /// stored rather than recomputed on every redraw.
+    public private(set) var diff: WordDiff.Result?
+
     private let source: String
     private let produce: @MainActor (String) -> AsyncThrowingStream<CorrectionEvent, any Error>
     private let budget: @MainActor () -> BudgetNotice?
@@ -62,6 +71,7 @@ public final class CorrectionSession {
         task?.cancel()
         state = .waiting
         model = ""
+        diff = nil
         task = Task { @MainActor in
             var accumulated = ""
             do {
@@ -74,6 +84,7 @@ public final class CorrectionSession {
                         state = .streaming(accumulated)
                     case .finished(let text):
                         state = .finished(text)
+                        diff = WordDiff.between(source, and: text)
                     }
                 }
                 // Cancelling a stream ends its loop without throwing

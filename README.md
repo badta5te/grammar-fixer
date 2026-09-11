@@ -55,8 +55,31 @@ or a pair of quotes can only be recognised in a finished answer.
 Closing the panel also stops the request. An answer nobody will read is still
 paid for.
 
-The footer names the model and counts characters and words. The number of
-changes will go there too.
+The footer names the model and counts characters, words and changes.
+
+### What the model changed
+
+Once the whole answer has arrived, the words the model touched are tinted green,
+the way a diff has always shown what was added, and the footer says how many
+places it touched. A text it left alone is shown plain,
+with "no changes" in the footer, which is the answer somebody checking their own
+writing wants to see.
+
+The comparison is by whole words rather than by characters. Fixing grammar
+mostly means adding a comma or a letter, and a character comparison tints the
+comma alone: a mark floating between two untouched words tells nobody anything,
+while "Привет," tinted whole reads at a glance. Words next to each other that
+both changed are tinted as one stretch, and a word the model removed leaves its
+mark on the gap where it stood — or on the surviving word beside the hole, when
+the removal was at the very start or the very end and there is no gap there at
+all. The number in the footer always has something on screen behind it.
+
+Highlighting waits for the whole answer on purpose. A half-arrived answer has
+nothing to compare against — the words still to come would look like words the
+model deleted — so the text streams plain and the tinting appears once.
+
+The tinting is for looking at. What `⏎` pastes and what `⌘⏎` copies is the
+answer itself, with nothing of the highlighting in it.
 
 Above the answer, and only when the month is worth mentioning, a line says
 where the spending stands. It appears at eighty per cent of the monthly limit
@@ -359,6 +382,7 @@ Sources/GrammarFixerCore/   all of the app's code
   TextIO/                   capture, paste, the clipboard, permissions
   LLM/                      the prompt, two provider adapters, parsing answers
   Billing/                  what a round cost, the prices, the month, the limit
+  Diff/                     which words the model changed
   Settings/                 settings over UserDefaults, keys in the Keychain
   UI/                       the windows of an agent app
   Support/                  the log

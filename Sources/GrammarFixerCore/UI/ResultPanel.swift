@@ -177,10 +177,15 @@ private struct ResultView: View {
         }
     }
 
+    /// The answer itself. While it is arriving it is plain text; once it is
+    /// whole the words the model changed are tinted. The scrolling deliberately
+    /// still watches the plain text: the tinted value is rebuilt on every
+    /// redraw, and handing that to `onChange` would set the panel scrolling
+    /// every time anything else on it moved.
     private func answer(_ text: String, isComplete: Bool) -> some View {
         ScrollViewReader { scroll in
             ScrollView {
-                Text(text)
+                Text(session.diff?.highlighted ?? AttributedString(text))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .id(Self.answerID)
@@ -201,6 +206,13 @@ private struct ResultView: View {
             if let text = shownText {
                 Text("·")
                 Text(TextMetrics.describe(text))
+            }
+            // Only once the answer is whole: a count that climbed while the
+            // text arrived would be counting words that had not been compared
+            // with anything yet.
+            if let diff = session.diff {
+                Text("·")
+                Text(TextMetrics.describeChanges(diff.changes))
             }
             Spacer()
             Text(hints)

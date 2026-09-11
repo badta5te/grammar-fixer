@@ -184,6 +184,82 @@ extension CorrectionSessionTests {
     }
 }
 
+/// What the model changed. The comparison waits for the whole answer: a half
+/// arrived answer has nothing to compare against, and highlighting that shifted
+/// with every piece would be unreadable.
+extension CorrectionSessionTests {
+    func testThereIsNothingToCompareUntilTheAnswerIsWhole() async {
+        let session = makeSession(source: "привет как дела")
+        session.start()
+        await settle()
+        XCTAssertNil(session.diff)
+
+        stream.send(.delta("Привет, как"))
+        await settle()
+
+        XCTAssertNil(session.diff)
+    }
+
+    func testTheWholeAnswerIsComparedWithWhatWasSelected() async {
+        let session = makeSession(source: "привет как дела")
+        session.start()
+        await settle()
+
+        stream.send(.finished("Привет, как дела?"))
+        stream.finish()
+        await settle()
+
+        let diff = session.diff
+        XCTAssertEqual(diff?.changes, 2)
+        XCTAssertEqual(diff?.pieces.filter(\.isChanged).map(\.text), ["Привет,", "дела?"])
+    }
+
+    func testAnAnswerTheModelLeftAloneIsShownPlain() async {
+        let session = makeSession(source: "Привет, как дела?")
+        session.start()
+        await settle()
+
+        stream.send(.finished("Привет, как дела?"))
+        stream.finish()
+        await settle()
+
+        XCTAssertEqual(session.diff?.changes, 0)
+        XCTAssertEqual(session.diff?.pieces.filter(\.isChanged), [])
+    }
+
+    /// A retry is a new answer, and the old highlighting would be about text
+    /// that is no longer on screen.
+    func testARetryClearsTheOldComparison() async {
+        let session = makeSession(source: "привет")
+        session.start()
+        await settle()
+        stream.send(.finished("Привет"))
+        stream.finish()
+        await settle()
+        XCTAssertNotNil(session.diff)
+
+        session.start()
+        await settle()
+
+        XCTAssertNil(session.diff)
+    }
+
+    /// The highlighting is for looking at. What leaves for somebody else's
+    /// document is the answer and nothing else.
+    func testWhatGetsPastedCarriesNothingOfTheHighlighting() async {
+        let session = makeSession(source: "привет как дела")
+        session.start()
+        await settle()
+
+        stream.send(.finished("Привет, как дела?"))
+        stream.finish()
+        await settle()
+
+        XCTAssertEqual(session.result, "Привет, как дела?")
+        XCTAssertEqual(session.diff?.text, session.result)
+    }
+}
+
 /// Where the month stands, on the panel. It is asked for rather than handed
 /// over once, so the round that passes the limit is the round that says so
 /// instead of the one after it.
