@@ -54,7 +54,7 @@ final class StreamChunkTests: XCTestCase {
         let line = #"data: {"error":{"message":"Rate limit reached","type":"rate_limit_error"}}"#
         XCTAssertThrowsError(try event(line)) { error in
             guard case LLMError.providerRejected(let detail) = error else {
-                return XCTFail("ожидалась ошибка провайдера, получено \(error)")
+                return XCTFail("expected a provider error, got \(error)")
             }
             XCTAssertEqual(detail, "Rate limit reached")
         }

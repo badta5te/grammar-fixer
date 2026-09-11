@@ -40,7 +40,7 @@ public enum Log {
         let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
         guard let size = attributes?[.size] as? Int, size > maximumSize else { return }
         try? FileManager.default.removeItem(at: fileURL)
-        write("журнал обрезан, прежний размер \(size) байт")
+        write("log trimmed, it was \(size) bytes")
     }
 
     private static func append(_ line: String) {

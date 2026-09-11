@@ -151,7 +151,7 @@ final class OpenAICompatibleClientTests: XCTestCase {
 
         do {
             _ = try await collect(client)
-            XCTFail("ожидался отказ провайдера")
+            XCTFail("expected the provider to refuse")
         } catch {
             XCTAssertEqual(error as? LLMError, .providerRejected("bad model"))
         }
@@ -166,7 +166,7 @@ final class OpenAICompatibleClientTests: XCTestCase {
 
         do {
             _ = try await collect(client)
-            XCTFail("ожидался отказ по ключу")
+            XCTFail("expected the key to be refused")
         } catch {
             XCTAssertEqual(error as? LLMError, .unauthorized("Incorrect API key provided"))
         }
@@ -177,7 +177,7 @@ final class OpenAICompatibleClientTests: XCTestCase {
 
         do {
             _ = try await collect(client)
-            XCTFail("ожидалось ограничение частоты")
+            XCTFail("expected to be rate limited")
         } catch {
             XCTAssertEqual(error as? LLMError, .rateLimited("slow down"))
         }
@@ -188,7 +188,7 @@ final class OpenAICompatibleClientTests: XCTestCase {
 
         do {
             _ = try await collect(client)
-            XCTFail("ожидалась недоступность провайдера")
+            XCTFail("expected the provider to be unavailable")
         } catch {
             XCTAssertEqual(error as? LLMError, .providerUnavailable(status: 503, detail: nil))
         }
@@ -201,7 +201,7 @@ final class OpenAICompatibleClientTests: XCTestCase {
 
         do {
             _ = try await collect(client)
-            XCTFail("ожидалась потеря связи")
+            XCTFail("expected a lost connection")
         } catch {
             XCTAssertEqual(error as? LLMError, .noConnection)
         }
@@ -259,22 +259,22 @@ final class OpenAICompatibleModelsTests: XCTestCase {
     /// model came out.
     func testTheNewestModelsComeFirst() async throws {
         let (client, _) = makeClient([.init(lines: [#"""
-            {"data":[{"id":"старая","created":1000},{"id":"новая","created":3000},{"id":"средняя","created":2000}]}
+            {"data":[{"id":"older","created":1000},{"id":"newer","created":3000},{"id":"middling","created":2000}]}
             """#])])
 
         let models = try await client.models()
 
-        XCTAssertEqual(models, ["новая", "средняя", "старая"])
+        XCTAssertEqual(models, ["newer", "middling", "older"])
     }
 
     /// A list without timestamps still has to come back in an order somebody
     /// can look things up in.
     func testWithoutTimestampsTheListIsAlphabetical() async throws {
-        let (client, _) = makeClient([.init(lines: [#"{"data":[{"id":"вторая"},{"id":"первая"}]}"#])])
+        let (client, _) = makeClient([.init(lines: [#"{"data":[{"id":"second"},{"id":"first"}]}"#])])
 
         let models = try await client.models()
 
-        XCTAssertEqual(models, ["вторая", "первая"])
+        XCTAssertEqual(models, ["first", "second"])
     }
 
     /// OpenAI answers this question with everything it sells, most of which
@@ -311,7 +311,7 @@ final class OpenAICompatibleModelsTests: XCTestCase {
 
         do {
             _ = try await client.models()
-            XCTFail("ожидался отказ по ключу")
+            XCTFail("expected the key to be refused")
         } catch {
             XCTAssertEqual(error as? LLMError, .unauthorized("Incorrect API key provided"))
         }
@@ -324,7 +324,7 @@ final class OpenAICompatibleModelsTests: XCTestCase {
 
         do {
             _ = try await client.models()
-            XCTFail("ожидался отказ")
+            XCTFail("expected a refusal")
         } catch {
             XCTAssertEqual(error as? LLMError, .providerRejected("not found"))
         }
@@ -335,7 +335,7 @@ final class OpenAICompatibleModelsTests: XCTestCase {
 
         do {
             _ = try await client.models()
-            XCTFail("ожидался отказ")
+            XCTFail("expected a refusal")
         } catch {
             XCTAssertEqual(error as? LLMError, .modelsUnreadable)
         }

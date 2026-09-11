@@ -74,7 +74,7 @@ public final class SystemKeyboard: SyntheticKeyboard {
             let keyDown = makeEvent(keyCode: keyCode, keyDown: true),
             let keyUp = makeEvent(keyCode: keyCode, keyDown: false)
         else {
-            Log.write("не удалось создать CGEvent")
+            Log.write("could not create a CGEvent")
             return
         }
 
@@ -105,6 +105,6 @@ public enum ModifierFlags {
         if flags.contains(.maskShift) { parts.append("shift") }
         if flags.contains(.maskAlternate) { parts.append("alt") }
         if flags.contains(.maskControl) { parts.append("ctrl") }
-        return parts.isEmpty ? "нет" : parts.joined(separator: "+")
+        return parts.isEmpty ? "none" : parts.joined(separator: "+")
     }
 }

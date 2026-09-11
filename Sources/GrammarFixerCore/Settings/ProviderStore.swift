@@ -91,7 +91,7 @@ public final class ProviderStore {
     public func prompt() -> Prompt {
         let template = settings.promptTemplate
         guard template.contains(Prompt.placeholder) else {
-            Log.write("в промпте нет \(Prompt.placeholder), взят исходный")
+            Log.write("the prompt has no \(Prompt.placeholder), so the original one is used")
             return .default
         }
         return Prompt(template: template)
@@ -216,9 +216,9 @@ public final class ProviderStore {
         // which is the state this message explains.
         do {
             try setKey(key, for: preset)
-            Log.write("настройки перенесены из файла: провайдер \(preset.id), ключ в Keychain")
+            Log.write("settings carried over from the file: provider \(preset.id), key in the Keychain")
         } catch {
-            Log.write("настройки перенесены из файла, но ключ не лёг в Keychain: "
+            Log.write("settings carried over from the file, but the key did not reach the Keychain: "
                 + ((error as? any UserFacingError)?.title ?? "\(error)"))
         }
         return true

@@ -111,7 +111,7 @@ func XCTAssertThrowsErrorAsync<T>(
 ) async {
     do {
         _ = try await expression()
-        XCTFail("ожидалась ошибка", file: file, line: line)
+        XCTFail("expected a failure", file: file, line: line)
     } catch {
         check(error)
     }
@@ -155,7 +155,7 @@ final class LLMTextTransformerStreamTests: XCTestCase {
         var received: [CorrectionEvent] = []
         do {
             for try await event in transformer.stream("текст") { received.append(event) }
-            XCTFail("ожидалась ошибка")
+            XCTFail("expected a failure")
         } catch {
             XCTAssertEqual(error as? LLMError, .rateLimited(nil))
         }

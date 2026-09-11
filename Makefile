@@ -32,7 +32,7 @@ run: bundle
 	@pkill -x GrammarFixer 2>/dev/null || true
 	@while pgrep -qx GrammarFixer; do sleep 0.1; done
 	@open $(APP)
-	@echo "Запущено, иконка в меню-баре"
+	@echo "Launched, look for the menu bar icon"
 
 ## Build and sign the bundle
 bundle:
@@ -45,14 +45,14 @@ release:
 ## Show what the bundle is signed with and what entitlements it has
 verify:
 	@codesign -dvvv $(APP) 2>&1 | grep -E '^(Identifier|Authority|Signature)' || true
-	@echo "--- права:"
-	@codesign -d --entitlements - --xml $(APP) 2>/dev/null | plutil -p - 2>/dev/null || echo "прав нет"
+	@echo "--- entitlements:"
+	@codesign -d --entitlements - --xml $(APP) 2>/dev/null | plutil -p - 2>/dev/null || echo "no entitlements"
 	@echo "--- LSUIElement:"
 	@plutil -extract LSUIElement raw $(APP)/Contents/Info.plist
 
 test:
 	@xcrun --find xctest >/dev/null 2>&1 || { \
-		echo "Для запуска тестов нужен Xcode: XCTest не входит в CommandLineTools" >&2; \
+		echo "Running the tests needs Xcode: XCTest is not part of the Command Line Tools" >&2; \
 		exit 1; }
 	@swift test
 

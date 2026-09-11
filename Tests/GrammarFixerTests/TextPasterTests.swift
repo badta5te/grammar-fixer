@@ -13,7 +13,7 @@ final class TextPasterTests: XCTestCase {
     private var focus: FakeFocusRestorer!
     private var clock: FakeClock!
 
-    private let snapshot = ClipboardSnapshot(items: [.init(payloads: ["public.utf8-plain-text": Data("было".utf8)])])
+    private let snapshot = ClipboardSnapshot(items: [.init(payloads: ["public.utf8-plain-text": Data("what was there".utf8)])])
 
     override func setUp() async throws {
         recorder = Recorder()
@@ -53,7 +53,7 @@ final class TextPasterTests: XCTestCase {
     func testClipboardPasteWaitsBeforeRestoringSoTheTargetCanRead() async {
         _ = await paste(method: .clipboard, restoreClipboard: true)
 
-        XCTAssertEqual(clock.ticks, 1, "между вставкой и восстановлением должна быть пауза")
+        XCTAssertEqual(clock.ticks, 1, "there has to be a pause between pasting and restoring")
     }
 
     func testRestoreIsSkippedWhenTheSettingIsOff() async {

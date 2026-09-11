@@ -15,8 +15,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let settings = Settings()
         Log.isEnabled = settings.writesLog
         Log.trimIfNeeded()
-        Log.section("запуск \(AppInfo.name) \(AppInfo.version)")
-        Log.write("доступ Accessibility: \(Accessibility.isTrusted)")
+        Log.section("launched \(AppInfo.name) \(AppInfo.version)")
+        Log.write("Accessibility access: \(Accessibility.isTrusted)")
 
         // Without a main menu the standard editing shortcuts never reach a
         // text field, and the settings window exists to have a key pasted into

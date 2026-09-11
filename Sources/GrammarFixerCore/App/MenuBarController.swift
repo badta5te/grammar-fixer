@@ -117,12 +117,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func toggleRestoreClipboard() {
         settings.restoreClipboardAfterPaste.toggle()
-        Log.write("восстановление буфера: \(settings.restoreClipboardAfterPaste)")
+        Log.write("restore clipboard: \(settings.restoreClipboardAfterPaste)")
     }
 
     @objc private func togglePasteByTyping() {
         settings.pasteMethod = settings.pasteMethod == .typing ? .clipboard : .typing
-        Log.write("способ вставки: \(settings.pasteMethod.rawValue)")
+        Log.write("paste method: \(settings.pasteMethod.rawValue)")
     }
 
     @objc private func toggleWriteLog() {

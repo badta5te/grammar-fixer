@@ -18,7 +18,7 @@ final class BundleConfigurationTests: XCTestCase {
               let parsed = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let dict = parsed as? [String: Any]
         else {
-            XCTFail("Не удалось прочитать Resources/Info.plist")
+            XCTFail("could not read Resources/Info.plist")
             return [:]
         }
         return dict

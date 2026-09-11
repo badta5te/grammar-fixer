@@ -47,7 +47,7 @@ public final class OnboardingPanel: NSObject, NSWindowDelegate {
                 let trusted = Accessibility.isTrusted
                 if trusted != state.isTrusted {
                     state.isTrusted = trusted
-                    Log.write("доступ Accessibility изменился: \(trusted)")
+                    Log.write("Accessibility access changed: \(trusted)")
                 }
             }
         }

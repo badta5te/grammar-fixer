@@ -6,8 +6,8 @@ import XCTest
 final class RoundTripErrorTests: XCTestCase {
     func testEveryErrorHasSomethingToShowTheUser() {
         for error in RoundTripError.allCases {
-            XCTAssertFalse(error.title.isEmpty, "\(error) без заголовка")
-            XCTAssertFalse(error.message.isEmpty, "\(error) без пояснения")
+            XCTAssertFalse(error.title.isEmpty, "\(error) has no title")
+            XCTAssertFalse(error.message.isEmpty, "\(error) has no explanation")
         }
     }
 
@@ -15,7 +15,7 @@ final class RoundTripErrorTests: XCTestCase {
         let cyrillic = CharacterSet(charactersIn: "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ")
         for error in RoundTripError.allCases {
             for text in [error.title, error.message] {
-                XCTAssertNil(text.rangeOfCharacter(from: cyrillic), "русский текст в интерфейсе: \(text)")
+                XCTAssertNil(text.rangeOfCharacter(from: cyrillic), "Russian text in the interface: \(text)")
             }
         }
     }
@@ -47,8 +47,8 @@ final class LLMErrorTests: XCTestCase {
 
     func testEveryFailureHasSomethingToShowTheUser() {
         for error in all {
-            XCTAssertFalse(error.title.isEmpty, "\(error) без заголовка")
-            XCTAssertFalse(error.message.isEmpty, "\(error) без пояснения")
+            XCTAssertFalse(error.title.isEmpty, "\(error) has no title")
+            XCTAssertFalse(error.message.isEmpty, "\(error) has no explanation")
         }
     }
 
@@ -56,7 +56,7 @@ final class LLMErrorTests: XCTestCase {
         let cyrillic = CharacterSet(charactersIn: "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ")
         for error in all {
             for text in [error.title, error.message] {
-                XCTAssertNil(text.rangeOfCharacter(from: cyrillic), "русский текст в интерфейсе: \(text)")
+                XCTAssertNil(text.rangeOfCharacter(from: cyrillic), "Russian text in the interface: \(text)")
             }
         }
     }
@@ -88,7 +88,7 @@ final class LLMErrorTests: XCTestCase {
     func testAnUnknownUrlFailureIsNotCalledALostConnection() {
         let blocked = URLError(.appTransportSecurityRequiresSecureConnection)
         guard case .unexpected = LLMError.from(blocked) else {
-            return XCTFail("ожидалось «что-то пошло не так», получено \(LLMError.from(blocked))")
+            return XCTFail("expected the catch-all failure, got \(LLMError.from(blocked))")
         }
         XCTAssertEqual(LLMError.from(URLError(.notConnectedToInternet)), .noConnection)
     }
@@ -97,7 +97,7 @@ final class LLMErrorTests: XCTestCase {
         for error in [LLMError.noConnection, .timedOut, .emptyAnswer] {
             XCTAssertTrue(
                 error.message.lowercased().contains("untouched"),
-                "\(error) не говорит, что текст остался цел"
+                "\(error) does not say the text is still intact"
             )
         }
     }

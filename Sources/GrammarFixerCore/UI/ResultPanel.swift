@@ -46,7 +46,7 @@ public final class ResultPanel: ResultPresenting {
             guard NSApp.keyWindow != nil else { return }
             try? await Task.sleep(for: .milliseconds(5))
         }
-        Log.write("панель не отдала клавиатуру за 200 мс")
+        Log.write("the panel did not give up the keyboard within 200 ms")
     }
 }
 

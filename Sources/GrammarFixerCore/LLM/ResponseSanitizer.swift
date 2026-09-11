@@ -15,6 +15,10 @@ import Foundation
 public enum ResponseSanitizer {
     /// Anchors the model repeats back from the prompt. They are ours, so they
     /// are recognized exactly, with no guessing from the shape of a line.
+    ///
+    /// The Russian entries are data, not text for a reader: a model answering
+    /// in Russian writes its preamble in Russian, and this list is what
+    /// recognises it. Translating them would stop them matching anything.
     private static let anchors = [
         "rewritten text:",
         "corrected text:",

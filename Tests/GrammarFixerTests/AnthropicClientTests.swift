@@ -72,12 +72,12 @@ final class AnthropicClientTests: XCTestCase {
 
         _ = try await collect(client, prompt: "коротко")
         let short = body(await transport.body(ofRequest: 0))["max_tokens"] as? Int
-        XCTAssertEqual(short, 1024, "у короткого текста должен быть нижний предел")
+        XCTAssertEqual(short, 1024, "a short text gets the floor")
 
         _ = try await collect(client, prompt: String(repeating: "текст ", count: 3000))
         let long = body(await transport.body(ofRequest: 1))["max_tokens"] as? Int
-        XCTAssertGreaterThan(long ?? 0, 1024, "длинный текст не должен обрезаться нижним пределом")
-        XCTAssertLessThanOrEqual(long ?? .max, 8192, "предел не должен уходить выше потолка модели")
+        XCTAssertGreaterThan(long ?? 0, 1024, "a long text must not be cut off by the floor")
+        XCTAssertLessThanOrEqual(long ?? .max, 8192, "the ceiling must not go above what a model accepts")
     }
 
     func testTextArrivesInOrderAndTheStreamStopsAtMessageStop() async throws {
@@ -152,7 +152,7 @@ final class AnthropicClientTests: XCTestCase {
 
         do {
             _ = try await collect(client)
-            XCTFail("ожидался отказ по ключу")
+            XCTFail("expected the key to be refused")
         } catch {
             XCTAssertEqual(error as? LLMError, .unauthorized("invalid x-api-key"))
         }
@@ -168,7 +168,7 @@ final class AnthropicClientTests: XCTestCase {
 
         do {
             _ = try await collect(client)
-            XCTFail("ожидался отказ провайдера")
+            XCTFail("expected the provider to refuse")
         } catch {
             XCTAssertEqual(error as? LLMError, .providerRejected("Overloaded"))
         }
@@ -179,7 +179,7 @@ final class AnthropicClientTests: XCTestCase {
 
         do {
             _ = try await collect(client)
-            XCTFail("ожидалась потеря связи")
+            XCTFail("expected a lost connection")
         } catch {
             XCTAssertEqual(error as? LLMError, .noConnection)
         }
@@ -230,14 +230,14 @@ final class AnthropicModelsTests: XCTestCase {
     func testTheNewestModelsComeFirst() async throws {
         let (client, _) = makeClient([.init(lines: [#"""
             {"data":[
-              {"type":"model","id":"claude-старая","display_name":"Old","created_at":"2024-02-29T00:00:00Z"},
-              {"type":"model","id":"claude-новая","display_name":"New","created_at":"2025-10-01T00:00:00Z"}
+              {"type":"model","id":"claude-older","display_name":"Old","created_at":"2024-02-29T00:00:00Z"},
+              {"type":"model","id":"claude-newer","display_name":"New","created_at":"2025-10-01T00:00:00Z"}
             ],"has_more":false}
             """#])])
 
         let models = try await client.models()
 
-        XCTAssertEqual(models, ["claude-новая", "claude-старая"])
+        XCTAssertEqual(models, ["claude-newer", "claude-older"])
     }
 
     func testARefusedKeyIsNamedRatherThanShownAsAnEmptyList() async {
@@ -247,7 +247,7 @@ final class AnthropicModelsTests: XCTestCase {
 
         do {
             _ = try await client.models()
-            XCTFail("ожидался отказ по ключу")
+            XCTFail("expected the key to be refused")
         } catch {
             XCTAssertEqual(error as? LLMError, .unauthorized("invalid x-api-key"))
         }

@@ -81,7 +81,7 @@ public final class SystemClipboard: Clipboard {
         // round that failed.
         if snapshot.wasEmpty {
             pasteboard.clearContents()
-            Log.write("буфер очищен: до круга он был пуст")
+            Log.write("clipboard cleared: it held nothing before the round")
             return true
         }
 
@@ -89,7 +89,7 @@ public final class SystemClipboard: Clipboard {
         // pasteboard would not be read at all, or the types were promised and
         // carried no data. Neither is grounds for wiping somebody's clipboard.
         guard !snapshot.isEmpty else {
-            Log.write("восстанавливать нечего, данных в снимке нет")
+            Log.write("nothing to restore, the snapshot holds no data")
             return false
         }
 
@@ -105,7 +105,7 @@ public final class SystemClipboard: Clipboard {
 
         pasteboard.clearContents()
         let written = pasteboard.writeObjects(items)
-        Log.write("буфер восстановлен: \(written), элементов \(items.count), типов \(snapshot.typeCount)")
+        Log.write("clipboard restored: \(written), items \(items.count), types \(snapshot.typeCount)")
         return written
     }
 

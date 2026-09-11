@@ -169,7 +169,7 @@ final class FakeResults: ResultPresenting {
         let deadline = Date().addingTimeInterval(2)
         while session.result == nil, !session.hasFailed {
             guard Date() < deadline else {
-                XCTFail("панель не дождалась ответа за 2 секунды")
+                XCTFail("the panel gave up waiting for an answer after 2 seconds")
                 return .dismissed
             }
             await Task.yield()

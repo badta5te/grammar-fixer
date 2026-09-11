@@ -34,7 +34,7 @@ final class SystemClipboardTests: XCTestCase {
     }
 
     func testSnapshotKeepsEveryTypeOfEveryItem() {
-        writeItem([png: Data([0x89, 0x50]), tiff: Data([0x4D, 0x4D]), .string: Data("подпись".utf8)])
+        writeItem([png: Data([0x89, 0x50]), tiff: Data([0x4D, 0x4D]), .string: Data("caption".utf8)])
 
         let snapshot = clipboard.snapshot()
 
@@ -45,38 +45,38 @@ final class SystemClipboardTests: XCTestCase {
 
     func testRestoreBringsBackNonTextualContentByteForByte() {
         let image = Data([0x89, 0x50, 0x4E, 0x47])
-        writeItem([png: image, .string: Data("подпись".utf8)])
+        writeItem([png: image, .string: Data("caption".utf8)])
         let snapshot = clipboard.snapshot()
 
-        clipboard.write("ПРОМЕЖУТОЧНЫЙ ТЕКСТ")
+        clipboard.write("TEXT IN BETWEEN")
         XCTAssertNil(pasteboard.data(forType: png))
 
         XCTAssertTrue(clipboard.restore(snapshot))
 
         XCTAssertEqual(pasteboard.data(forType: png), image)
-        XCTAssertEqual(clipboard.readText(), "подпись")
+        XCTAssertEqual(clipboard.readText(), "caption")
     }
 
     /// An NSPasteboardItem can be handed to the system only once, which is why
     /// the snapshot is held as values. Otherwise a second restore would
     /// quietly put nothing back.
     func testTheSameSnapshotCanBeRestoredTwice() {
-        writeItem([.string: Data("исходное".utf8)])
+        writeItem([.string: Data("original".utf8)])
         let snapshot = clipboard.snapshot()
 
-        clipboard.write("чужое")
+        clipboard.write("somebody elses")
         XCTAssertTrue(clipboard.restore(snapshot))
-        clipboard.write("снова чужое")
+        clipboard.write("somebody elses again")
         XCTAssertTrue(clipboard.restore(snapshot))
 
-        XCTAssertEqual(clipboard.readText(), "исходное")
+        XCTAssertEqual(clipboard.readText(), "original")
     }
 
     /// A snapshot with no items means the clipboard was empty, and putting
     /// such a clipboard back means clearing it. Otherwise the captured
     /// selection would stay in the clipboard after a round that failed.
     func testRestoringAnEmptyClipboardClearsIt() {
-        writeItem([.string: Data("захваченное выделение".utf8)])
+        writeItem([.string: Data("the captured selection".utf8)])
 
         XCTAssertTrue(clipboard.restore(ClipboardSnapshot(items: [])))
 
@@ -86,29 +86,29 @@ final class SystemClipboardTests: XCTestCase {
     /// A pasteboard that could not be read at all looks exactly like an empty
     /// one. Clearing on that basis destroys whatever the person had copied.
     func testSnapshotThatCouldNotBeTakenDoesNotWipeTheClipboard() {
-        writeItem([.string: Data("что-то".utf8)])
+        writeItem([.string: Data("something".utf8)])
         let unread = ClipboardSnapshot(items: [], wasRead: false)
 
         XCTAssertFalse(clipboard.restore(unread))
 
-        XCTAssertEqual(clipboard.readText(), "что-то")
+        XCTAssertEqual(clipboard.readText(), "something")
     }
 
     /// A snapshot with an item but no data means something else: the types
     /// were promised and nothing could be read. That is no grounds for wiping
     /// somebody's clipboard.
     func testSnapshotThatCouldNotBeReadDoesNotWipeTheClipboard() {
-        writeItem([.string: Data("что-то".utf8)])
+        writeItem([.string: Data("something".utf8)])
         let unreadable = ClipboardSnapshot(items: [ClipboardSnapshot.Item(payloads: [:])])
 
         XCTAssertFalse(clipboard.restore(unreadable))
 
-        XCTAssertEqual(clipboard.readText(), "что-то")
+        XCTAssertEqual(clipboard.readText(), "something")
     }
 
     func testChangeCountMovesOnWrite() {
         let before = clipboard.changeCount
-        clipboard.write("новое")
+        clipboard.write("new")
         XCTAssertNotEqual(clipboard.changeCount, before)
     }
 }

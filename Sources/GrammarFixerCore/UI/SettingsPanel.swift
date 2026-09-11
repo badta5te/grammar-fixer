@@ -134,7 +134,7 @@ public final class SettingsFormState {
         modelList = .notLoaded
         keyState = .untested
         keyFailure = nil
-        Log.write("провайдер: \(preset.id)")
+        Log.write("provider: \(preset.id)")
     }
 
     func modelChanged() {
@@ -159,7 +159,7 @@ public final class SettingsFormState {
             keyFailure = nil
         } catch let error as any UserFacingError {
             keyFailure = Notice(title: error.title, message: error.message)
-            Log.write("ключ не сохранён: \(error.title)")
+            Log.write("key not saved: \(error.title)")
         } catch {
             keyFailure = Notice(title: "The key could not be saved", message: "\(error)")
         }
@@ -174,7 +174,7 @@ public final class SettingsFormState {
         // Applied to the application, so the windows already on screen change
         // with it instead of waiting to be reopened.
         theme.apply()
-        Log.write("тема: \(theme.rawValue)")
+        Log.write("theme: \(theme.rawValue)")
     }
 
     func restoreClipboardChanged() { settings.restoreClipboardAfterPaste = restoreClipboard }
@@ -193,10 +193,10 @@ public final class SettingsFormState {
         do {
             let models = try await store.models()
             modelList = .loaded(models)
-            Log.write("список моделей получен: \(models.count)")
+            Log.write("model list received: \(models.count)")
         } catch let error as any UserFacingError {
             modelList = .failed(error.message)
-            Log.write("список моделей не получен: \(error.title)")
+            Log.write("model list not received: \(error.title)")
         } catch {
             modelList = .failed("\(error)")
         }

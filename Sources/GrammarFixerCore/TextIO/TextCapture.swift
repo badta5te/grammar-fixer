@@ -64,7 +64,7 @@ public final class TextCapture {
     public func capture() async -> Result {
         let snapshot = clipboard.snapshot()
         let before = clipboard.changeCount
-        Log.write("снимок буфера: элементов \(snapshot.items.count), типов \(snapshot.typeCount)")
+        Log.write("clipboard snapshot: items \(snapshot.items.count), types \(snapshot.typeCount)")
 
         keyboard.copy()
 
@@ -73,15 +73,15 @@ public final class TextCapture {
             await sleep(pollInterval)
             guard clipboard.changeCount != before else { continue }
 
-            Log.write(String(format: "буфер обновился за %.0f мс", Date().timeIntervalSince(start) * 1000))
+            Log.write(String(format: "clipboard changed in %.0f ms", Date().timeIntervalSince(start) * 1000))
             guard let text = clipboard.readText(), !text.isEmpty else {
                 return Result(outcome: .unsupportedSelection, snapshot: snapshot, changeCountBefore: before)
             }
-            Log.write("захвачено символов: \(text.count)")
+            Log.write("captured characters: \(text.count)")
             return Result(outcome: .captured(text), snapshot: snapshot, changeCountBefore: before)
         }
 
-        Log.write("счётчик буфера не сдвинулся за \(Int(timeout * 1000)) мс — выделения нет")
+        Log.write("the clipboard count did not move in \(Int(timeout * 1000)) ms, so nothing was selected")
         return Result(outcome: .nothingSelected, snapshot: snapshot, changeCountBefore: before)
     }
 
@@ -100,7 +100,7 @@ public final class TextCapture {
         for _ in 0 ..< polls(within: lateCopyWindow) {
             await sleep(pollInterval)
             guard clipboard.changeCount != result.changeCountBefore else { continue }
-            Log.write("копия приехала после отказа, буфер возвращается на место")
+            Log.write("the copy arrived after we gave up, so the clipboard goes back")
             return clipboard.restore(result.snapshot)
         }
         return false

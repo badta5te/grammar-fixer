@@ -35,7 +35,7 @@ public enum KeyCheck {
         do {
             guard !configuration.model.trimmed.isEmpty else {
                 let models = try await makeListing(configuration).models()
-                Log.write("ключ принят, моделей в списке: \(models.count)")
+                Log.write("key accepted, models offered: \(models.count)")
                 return .accepted(models: models)
             }
 
@@ -49,12 +49,12 @@ public enum KeyCheck {
             }
         } catch {
             let failure = (error as? any UserFacingError) ?? LLMError.from(error)
-            Log.write("проверка ключа не прошла: \(failure.title)")
+            Log.write("key check failed: \(failure.title)")
             return .refused(title: failure.title, message: failure.message)
         }
         // A provider that answered without complaining accepted the key, even
         // if the model chose to say nothing.
-        Log.write("проверка ключа прошла: модель \(configuration.model)")
+        Log.write("key check passed: model \(configuration.model)")
         return .working(model: configuration.model)
     }
 }

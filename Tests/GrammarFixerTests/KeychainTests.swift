@@ -21,9 +21,9 @@ final class KeychainTests: XCTestCase {
     }
 
     func testAStoredSecretComesBack() throws {
-        try keychain.store("sk-секрет", for: "deepseek")
+        try keychain.store("sk-secret", for: "deepseek")
 
-        XCTAssertEqual(try keychain.secret(for: "deepseek"), "sk-секрет")
+        XCTAssertEqual(try keychain.secret(for: "deepseek"), "sk-secret")
     }
 
     /// An account with nothing in it is the first launch, not a failure. If it
@@ -37,14 +37,14 @@ final class KeychainTests: XCTestCase {
     /// old one. SecItemAdd alone would answer errSecDuplicateItem and the new
     /// key would never be saved.
     func testAKeyPastedOverAnOldOneReplacesIt() throws {
-        try keychain.store("первый", for: "deepseek")
-        try keychain.store("второй", for: "deepseek")
+        try keychain.store("first", for: "deepseek")
+        try keychain.store("second", for: "deepseek")
 
-        XCTAssertEqual(try keychain.secret(for: "deepseek"), "второй")
+        XCTAssertEqual(try keychain.secret(for: "deepseek"), "second")
     }
 
     func testRemovingLeavesNothingBehind() throws {
-        try keychain.store("sk-секрет", for: "deepseek")
+        try keychain.store("sk-secret", for: "deepseek")
 
         try keychain.removeSecret(for: "deepseek")
 
@@ -60,10 +60,10 @@ final class KeychainTests: XCTestCase {
     /// Keys are kept per provider on purpose: trying DeepSeek for a week and
     /// coming back to OpenAI must not cost the OpenAI key.
     func testEachProviderKeepsItsOwnKey() throws {
-        try keychain.store("ключ-deepseek", for: "deepseek")
-        try keychain.store("ключ-openai", for: "openai")
+        try keychain.store("key-deepseek", for: "deepseek")
+        try keychain.store("key-openai", for: "openai")
 
-        XCTAssertEqual(try keychain.secret(for: "deepseek"), "ключ-deepseek")
-        XCTAssertEqual(try keychain.secret(for: "openai"), "ключ-openai")
+        XCTAssertEqual(try keychain.secret(for: "deepseek"), "key-deepseek")
+        XCTAssertEqual(try keychain.secret(for: "openai"), "key-openai")
     }
 }

@@ -31,7 +31,7 @@ final class ProviderStoreTests: XCTestCase {
     private func configureDeepSeek() {
         settings.providerId = ProviderPreset.deepseek.id
         settings.setModel("deepseek-chat", for: ProviderPreset.deepseek.id)
-        secrets.stored["deepseek"] = "sk-ключ"
+        secrets.stored["deepseek"] = "sk-key"
     }
 
     func testAPresetSuppliesTheAddressAndTheAdapter() throws {
@@ -41,7 +41,7 @@ final class ProviderStoreTests: XCTestCase {
 
         XCTAssertEqual(configuration.baseURL.absoluteString, "https://api.deepseek.com")
         XCTAssertEqual(configuration.model, "deepseek-chat")
-        XCTAssertEqual(configuration.apiKey, "sk-ключ")
+        XCTAssertEqual(configuration.apiKey, "sk-key")
         XCTAssertEqual(configuration.kind, .openAICompatible)
     }
 
@@ -59,7 +59,7 @@ final class ProviderStoreTests: XCTestCase {
         settings.providerId = ProviderPreset.custom.id
         settings.address = "http://localhost:11434/v1"
         settings.setModel("qwen2.5", for: ProviderPreset.custom.id)
-        secrets.stored["custom"] = "какой-нибудь"
+        secrets.stored["custom"] = "whatever"
 
         let configuration = try makeStore().configuration()
 
@@ -70,16 +70,16 @@ final class ProviderStoreTests: XCTestCase {
     /// Each provider keeps its own key, so trying another one for a week and
     /// coming back does not cost the first key.
     func testSwitchingProviderPicksUpThatProvidersOwnKey() throws {
-        secrets.stored["deepseek"] = "ключ-deepseek"
-        secrets.stored["openai"] = "ключ-openai"
-        settings.setModel("какая-нибудь", for: "deepseek")
-        settings.setModel("какая-нибудь", for: "openai")
+        secrets.stored["deepseek"] = "key-deepseek"
+        secrets.stored["openai"] = "key-openai"
+        settings.setModel("whichever", for: "deepseek")
+        settings.setModel("whichever", for: "openai")
 
         settings.providerId = ProviderPreset.openai.id
-        XCTAssertEqual(try makeStore().configuration().apiKey, "ключ-openai")
+        XCTAssertEqual(try makeStore().configuration().apiKey, "key-openai")
 
         settings.providerId = ProviderPreset.deepseek.id
-        XCTAssertEqual(try makeStore().configuration().apiKey, "ключ-deepseek")
+        XCTAssertEqual(try makeStore().configuration().apiKey, "key-deepseek")
     }
 
     /// Criterion three of the ticket, and the reason nothing is cached: the
@@ -103,7 +103,7 @@ final class ProviderStoreTests: XCTestCase {
         let store = makeStore()
 
         store.preset = .anthropic
-        XCTAssertEqual(store.model, "", "модель другого провайдера не должна переезжать")
+        XCTAssertEqual(store.model, "", "a model belonging to another provider must not come along")
         store.model = "claude-haiku-4-5-20251001"
 
         store.preset = .deepseek
@@ -122,7 +122,7 @@ final class ProviderStoreTests: XCTestCase {
         let settings = Settings(defaults: defaults)
 
         XCTAssertEqual(settings.model(for: ProviderPreset.deepseek.id), "deepseek-flash")
-        XCTAssertNil(defaults.string(forKey: "Model"), "старый ключ должен быть убран за собой")
+        XCTAssertNil(defaults.string(forKey: "Model"), "the old key should have been cleaned up")
     }
 
     // MARK: - Being half-configured
@@ -143,7 +143,7 @@ final class ProviderStoreTests: XCTestCase {
     }
 
     func testAMissingModelIsNamedOnItsOwn() {
-        secrets.stored["deepseek"] = "sk-ключ"
+        secrets.stored["deepseek"] = "sk-key"
 
         XCTAssertThrowsError(try makeStore().configuration()) { error in
             XCTAssertEqual(error as? LLMError, .noModel)
@@ -162,7 +162,7 @@ final class ProviderStoreTests: XCTestCase {
     func testYourOwnAddressLeftEmptyIsNamed() {
         settings.providerId = ProviderPreset.custom.id
         settings.setModel("qwen2.5", for: ProviderPreset.custom.id)
-        secrets.stored["custom"] = "ключ"
+        secrets.stored["custom"] = "a-key"
 
         XCTAssertThrowsError(try makeStore().configuration()) { error in
             XCTAssertEqual(error as? LLMError, .badAddress(""))
@@ -173,7 +173,7 @@ final class ProviderStoreTests: XCTestCase {
         settings.providerId = ProviderPreset.custom.id
         settings.address = "localhost:11434"
         settings.setModel("qwen2.5", for: ProviderPreset.custom.id)
-        secrets.stored["custom"] = "ключ"
+        secrets.stored["custom"] = "a-key"
 
         XCTAssertThrowsError(try makeStore().configuration()) { error in
             XCTAssertEqual(error as? LLMError, .badAddress("localhost:11434"))
@@ -184,12 +184,12 @@ final class ProviderStoreTests: XCTestCase {
     /// left behind by an older version. Either way it must name itself rather
     /// than quietly becoming something else.
     func testAnUnknownProviderNameIsNamed() {
-        settings.setModel("m", for: "выдумка")
-        secrets.stored["выдумка"] = "k"
-        settings.providerId = "выдумка"
+        settings.setModel("m", for: "madeup")
+        secrets.stored["madeup"] = "k"
+        settings.providerId = "madeup"
 
         XCTAssertThrowsError(try makeStore().configuration()) { error in
-            XCTAssertEqual(error as? LLMError, .unknownProvider("выдумка"))
+            XCTAssertEqual(error as? LLMError, .unknownProvider("madeup"))
         }
     }
 
@@ -200,7 +200,7 @@ final class ProviderStoreTests: XCTestCase {
         secrets.failure = KeychainError(status: -25293, account: "deepseek", action: .read)
 
         XCTAssertThrowsError(try makeStore().configuration()) { error in
-            XCTAssertTrue(error is KeychainError, "получено \(error)")
+            XCTAssertTrue(error is KeychainError, "got \(error)")
         }
     }
 
@@ -210,13 +210,13 @@ final class ProviderStoreTests: XCTestCase {
         configureDeepSeek()
 
         let configuration = try makeStore(environment: [
-            "GRAMMARFIXER_API_KEY": "из-окружения",
-            "GRAMMARFIXER_MODEL": "другая",
+            "GRAMMARFIXER_API_KEY": "from-the-environment",
+            "GRAMMARFIXER_MODEL": "another",
             "GRAMMARFIXER_BASE_URL": "http://localhost:1234/v1",
         ]).configuration()
 
-        XCTAssertEqual(configuration.apiKey, "из-окружения")
-        XCTAssertEqual(configuration.model, "другая")
+        XCTAssertEqual(configuration.apiKey, "from-the-environment")
+        XCTAssertEqual(configuration.model, "another")
         XCTAssertEqual(configuration.baseURL.absoluteString, "http://localhost:1234/v1")
     }
 
@@ -226,23 +226,23 @@ final class ProviderStoreTests: XCTestCase {
     /// change nothing at all.
     func testTheWindowFollowsTheProviderTheEnvironmentChose() throws {
         settings.providerId = ProviderPreset.deepseek.id
-        secrets.stored["anthropic"] = "ключ-anthropic"
+        secrets.stored["anthropic"] = "key-anthropic"
         let store = makeStore(environment: ["GRAMMARFIXER_PROVIDER": "anthropic"])
 
         XCTAssertEqual(store.preset, .anthropic)
-        XCTAssertEqual(try store.key(for: store.preset), "ключ-anthropic")
+        XCTAssertEqual(try store.key(for: store.preset), "key-anthropic")
 
         store.model = "claude-haiku-4-5-20251001"
         XCTAssertEqual(settings.model(for: "anthropic"), "claude-haiku-4-5-20251001")
-        XCTAssertEqual(settings.model(for: "deepseek"), "", "чужой слот трогать нельзя")
+        XCTAssertEqual(settings.model(for: "deepseek"), "", "another slot must be left alone")
     }
 
     /// A window showing a value that is not the one in use is worse than no
     /// window. What the environment has taken over has to be sayable.
     func testWhatTheEnvironmentHasTakenOverCanBeNamed() {
         let store = makeStore(environment: [
-            "GRAMMARFIXER_API_KEY": "из-окружения",
-            "GRAMMARFIXER_MODEL": "другая",
+            "GRAMMARFIXER_API_KEY": "from-the-environment",
+            "GRAMMARFIXER_MODEL": "another",
         ])
 
         XCTAssertTrue(store.overrides.key)
@@ -292,14 +292,14 @@ final class ProviderStoreTests: XCTestCase {
 
     func testTheOldFileIsCarriedOverOnceIntoTheWindowAndTheKeychain() throws {
         let imported = makeStore().importLegacyFile(contents: Data(#"""
-            {"provider":"openai","model":"gpt-4o-mini","apiKey":"sk-старый","reasoning":"default"}
+            {"provider":"openai","model":"gpt-4o-mini","apiKey":"sk-old","reasoning":"default"}
             """#.utf8))
 
         XCTAssertTrue(imported)
         XCTAssertEqual(settings.providerId, "openai")
         XCTAssertEqual(settings.model(for: "openai"), "gpt-4o-mini")
         XCTAssertEqual(settings.reasoning, .providerDefault)
-        XCTAssertEqual(secrets.stored["openai"], "sk-старый")
+        XCTAssertEqual(secrets.stored["openai"], "sk-old")
     }
 
     /// The file is read and never written, so the import cannot run twice and
@@ -308,12 +308,12 @@ final class ProviderStoreTests: XCTestCase {
         configureDeepSeek()
 
         let imported = makeStore().importLegacyFile(contents: Data(#"""
-            {"provider":"openai","model":"gpt-4o-mini","apiKey":"sk-старый"}
+            {"provider":"openai","model":"gpt-4o-mini","apiKey":"sk-old"}
             """#.utf8))
 
         XCTAssertFalse(imported)
         XCTAssertEqual(settings.model(for: "deepseek"), "deepseek-chat")
-        XCTAssertEqual(secrets.stored["deepseek"], "sk-ключ")
+        XCTAssertEqual(secrets.stored["deepseek"], "sk-key")
     }
 
     func testThereIsNothingToCarryOverFromAMissingOrBrokenFile() {

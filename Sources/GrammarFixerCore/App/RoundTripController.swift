@@ -54,14 +54,14 @@ public final class RoundTripController {
             self?.run()
         }
         guard hotKey == nil else {
-            Log.write("хоткей ⇧⌃⌥⌘G зарегистрирован")
+            Log.write("shortcut ⇧⌃⌥⌘G registered")
             return
         }
         // Without a message the person gets an app that simply does nothing,
         // and no way to find out why. This does not catch every conflict: the
         // prototype got noErr for a combination Raycast already owned, so a
         // taken shortcut can still register successfully and stay silent.
-        Log.write("хоткей ⇧⌃⌥⌘G зарегистрировать НЕ удалось")
+        Log.write("shortcut ⇧⌃⌥⌘G could NOT be registered")
         notices.show(RoundTripError.hotKeyUnavailable)
     }
 
@@ -70,7 +70,7 @@ public final class RoundTripController {
             // A round trip with a model takes seconds. A second press happens
             // precisely because no result is visible yet, and silence in reply
             // reads as "the shortcut is broken".
-            Log.write("повторное нажатие во время круга, пропущено")
+            Log.write("pressed again during a round, ignored")
             environment.beep()
             return
         }
@@ -83,13 +83,13 @@ public final class RoundTripController {
 
     private func roundTrip() async {
         let sourceApp = environment.frontmostApplication
-        Log.section("хоткей: \(sourceApp?.localizedName ?? "неизвестно")")
-        Log.write("флаги: \(ModifierFlags.describeCurrent()), способ вставки: \(settings.pasteMethod.rawValue)")
+        Log.section("shortcut: \(sourceApp?.localizedName ?? "unknown")")
+        Log.write("modifiers: \(ModifierFlags.describeCurrent()), paste method: \(settings.pasteMethod.rawValue)")
 
         // Access is checked again on every round: it can be revoked in System
         // Settings, and then the round trip has to lead to onboarding.
         guard environment.isAccessibilityTrusted else {
-            Log.write("доступа Accessibility нет, показываем онбординг")
+            Log.write("no Accessibility access, showing the onboarding screen")
             onAccessibilityDenied()
             return
         }
@@ -99,7 +99,7 @@ public final class RoundTripController {
         // never moves, and the person is told nothing was selected while their
         // text plainly is.
         guard !environment.isSecureInputActive else {
-            Log.write("защищённый ввод включён, захват невозможен")
+            Log.write("secure input is on, so capture is impossible")
             notices.show(RoundTripError.secureInputActive)
             return
         }
@@ -129,7 +129,7 @@ public final class RoundTripController {
             // would explain what the person can already see, and cost them a
             // click to put away. Which of the two cases it was stays in the
             // log, where it is diagnosis rather than news.
-            Log.write("выделение не пришло текстом")
+            Log.write("the selection did not arrive as text")
             environment.beep()
             if settings.restoreClipboardAfterPaste {
                 clipboard.restore(result.snapshot)
@@ -180,10 +180,10 @@ public final class RoundTripController {
             // No restore on purpose. Putting the previous contents back would
             // undo the one thing that was asked for.
             clipboard.write(fixed)
-            Log.write("результат положен в буфер, вставки не было")
+            Log.write("the result went to the clipboard, nothing was pasted")
 
         case .dismissed:
-            Log.write("панель закрыта, вставки не было")
+            Log.write("the panel was closed, nothing was pasted")
             restoreCapturedSelection(
                 snapshot,
                 capturedText: text,
@@ -210,7 +210,7 @@ public final class RoundTripController {
     ) {
         guard settings.restoreClipboardAfterPaste else { return }
         guard clipboardStillHoldsCapture(capturedText, since: changeCount) else {
-            Log.write("в буфере чужая копия — снимок не возвращается")
+            Log.write("the clipboard holds somebody else's copy, so the snapshot stays where it is")
             return
         }
         clipboard.restore(snapshot)

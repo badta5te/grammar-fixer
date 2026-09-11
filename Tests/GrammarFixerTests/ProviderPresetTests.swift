@@ -9,7 +9,7 @@ final class ProviderPresetTests: XCTestCase {
         let ids = ProviderPreset.all.map(\.id)
 
         for expected in ["openai", "anthropic", "deepseek", "openrouter"] {
-            XCTAssertTrue(ids.contains(expected), "нет пресета \(expected)")
+            XCTAssertTrue(ids.contains(expected), "no preset named \(expected)")
         }
     }
 
@@ -24,9 +24,9 @@ final class ProviderPresetTests: XCTestCase {
     func testEveryNamedProviderCarriesAnAbsoluteAddress() {
         for preset in ProviderPreset.all where !preset.wantsItsOwnAddress {
             guard let address = preset.baseURL, let url = URL(string: address) else {
-                return XCTFail("\(preset.id): адрес не разбирается")
+                return XCTFail("\(preset.id): the address does not parse")
             }
-            XCTAssertEqual(url.scheme, "https", "\(preset.id): адрес не https")
+            XCTAssertEqual(url.scheme, "https", "\(preset.id): the address is not https")
         }
     }
 
@@ -37,7 +37,7 @@ final class ProviderPresetTests: XCTestCase {
     }
 
     func testAnUnknownNameIsNotAPreset() {
-        XCTAssertNil(ProviderPreset.named("выдумка"))
+        XCTAssertNil(ProviderPreset.named("madeup"))
     }
 
     /// The whole reason there are two adapters rather than one.

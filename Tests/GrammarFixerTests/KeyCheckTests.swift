@@ -9,7 +9,7 @@ final class KeyCheckTests: XCTestCase {
     private let configuration = ProviderConfiguration(
         model: "deepseek-chat",
         baseURL: URL(string: "https://api.deepseek.com")!,
-        apiKey: "sk-ключ",
+        apiKey: "sk-key",
         requestsUsage: true,
         reasoning: .off
     )
@@ -58,7 +58,7 @@ final class KeyCheckTests: XCTestCase {
         client.failure = LLMError.providerRejected("model not found")
 
         guard case .refused(let title, _) = await run(client) else {
-            return XCTFail("ожидался отказ")
+            return XCTFail("expected a refusal")
         }
         XCTAssertEqual(title, LLMError.providerRejected(nil).title)
     }
@@ -68,7 +68,7 @@ final class KeyCheckTests: XCTestCase {
         client.failure = URLError(.notConnectedToInternet)
 
         guard case .refused(let title, _) = await run(client) else {
-            return XCTFail("ожидался отказ")
+            return XCTFail("expected a refusal")
         }
         XCTAssertEqual(title, LLMError.noConnection.title)
     }
@@ -93,7 +93,7 @@ final class KeyCheckWithoutAModelTests: XCTestCase {
     private let configuration = ProviderConfiguration(
         model: "",
         baseURL: URL(string: "https://api.anthropic.com/v1")!,
-        apiKey: "sk-ключ",
+        apiKey: "sk-key",
         requestsUsage: true,
         reasoning: .off,
         kind: .anthropic
@@ -123,7 +123,7 @@ final class KeyCheckWithoutAModelTests: XCTestCase {
         listing.failure = LLMError.unauthorized("invalid x-api-key")
 
         guard case .refused(let title, _) = await run(listing) else {
-            return XCTFail("ожидался отказ")
+            return XCTFail("expected a refusal")
         }
         XCTAssertEqual(title, LLMError.unauthorized(nil).title)
     }

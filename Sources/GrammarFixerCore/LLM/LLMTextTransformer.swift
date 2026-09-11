@@ -69,7 +69,7 @@ public struct LLMTextTransformer: TextTransforming {
                     // useless later.
                     guard !Task.isCancelled else {
                         Log.write(String(
-                            format: "круг прерван: %d символов ответа за %.0f мс",
+                            format: "round cut short: %d characters of answer in %.0f ms",
                             answer.count,
                             Date().timeIntervalSince(started) * 1000
                         ))
@@ -83,12 +83,12 @@ public struct LLMTextTransformer: TextTransforming {
                     // the log. The log is a plain file, and other people's
                     // correspondence passes through this app.
                     Log.write(String(
-                        format: "модель %@: %d → %d символов за %.0f мс, токены %@",
+                        format: "model %@: %d → %d characters in %.0f ms, tokens %@",
                         configuration.model,
                         text.count,
                         cleaned.count,
                         Date().timeIntervalSince(started) * 1000,
-                        usage.map { "\($0.promptTokens)+\($0.completionTokens)" } ?? "не сообщены"
+                        usage.map { "\($0.promptTokens)+\($0.completionTokens)" } ?? "not reported"
                     ))
 
                     guard !cleaned.isEmpty else { throw LLMError.emptyAnswer }

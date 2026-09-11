@@ -68,7 +68,7 @@ public final class CorrectionSession {
                 // Cancelling a stream ends its loop without throwing
                 // anything, so a closed panel arrives here looking exactly
                 // like a model that answered with nothing. Calling that a
-                // failure would write "исправление не состоялось" into the log
+                // failure would write "correction did not happen" into the log
                 // every time somebody pressed Esc, and a log that cries wolf is
                 // worse than no log.
                 guard !Task.isCancelled else { return }
@@ -93,7 +93,7 @@ public final class CorrectionSession {
 
     private func fail(_ error: any Error) {
         let failure = (error as? any UserFacingError) ?? LLMError.from(error)
-        Log.write("исправление не состоялось: \(failure.title)")
+        Log.write("correction did not happen: \(failure.title)")
         state = .failed(title: failure.title, message: failure.message)
     }
 }

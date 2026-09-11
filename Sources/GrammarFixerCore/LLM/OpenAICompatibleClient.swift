@@ -71,7 +71,7 @@ public struct OpenAICompatibleClient: LLMClient, ModelListing {
         // with the bare request is cheaper than leaving the person without a
         // correction for the sake of a setting.
         if response.status == 400 && hasExtras {
-            await MainActor.run { Log.write("провайдер отказал с 400, повтор без необязательных полей") }
+            await MainActor.run { Log.write("the provider refused with 400, retrying without the optional fields") }
             response = try await transport.send(request(prompt: prompt, withExtras: false))
         }
 

@@ -60,25 +60,25 @@ public final class TextPaster {
         }
 
         guard await focus.activate(app, timeout: activationTimeout) else {
-            Log.write("фокус не вернулся — вставка отменена, чтобы не вставить не туда")
+            Log.write("focus did not come back, so the paste was called off rather than land in the wrong window")
             if method == .clipboard, restoreClipboard {
                 clipboard.restore(snapshot)
             }
             return .failure(.focusLost)
         }
-        Log.write("флаги перед вставкой: \(ModifierFlags.describeCurrent())")
+        Log.write("modifiers held before pasting: \(ModifierFlags.describeCurrent())")
 
         switch method {
         case .typing:
             keyboard.type(text)
-            Log.write("круг завершён набором текста, буфер обмена не менялся")
+            Log.write("round finished by typing, the clipboard was never touched")
         case .clipboard:
             keyboard.paste()
             if restoreClipboard {
                 await sleep(clipboardHoldDelay)
                 clipboard.restore(snapshot)
             }
-            Log.write("круг завершён вставкой из буфера")
+            Log.write("round finished by pasting from the clipboard")
         }
         return .success(())
     }

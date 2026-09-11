@@ -52,7 +52,7 @@ final class TextCaptureTests: XCTestCase {
         let result = await makeCapture().capture()
 
         XCTAssertEqual(result.outcome, .nothingSelected)
-        XCTAssertNil(clipboard.restored, "до подтверждённого инкремента в буфер не пишется ничего")
+        XCTAssertNil(clipboard.restored, "nothing is written to the clipboard before a confirmed increment")
     }
 
     /// Found in Chrome: the change count moved but there is no string in the

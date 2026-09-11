@@ -35,9 +35,9 @@ else
     identity="-"
     cat >&2 <<WARNING
 
-  Сертификат «${DEV_IDENTITY}» не найден, подпись будет ad-hoc.
-  Доступ Accessibility придётся выдавать заново после каждой сборки.
-  Как создать сертификат один раз — в README, раздел «Подпись».
+  No «${DEV_IDENTITY}» certificate found, so the signature will be ad-hoc.
+  Accessibility access will have to be granted again after every build.
+  The README explains how to make the certificate once, under Signing.
 
 WARNING
 fi
@@ -46,5 +46,5 @@ fi
 # the executable while building.
 codesign --force --sign "$identity" --identifier "$BUNDLE_ID" --timestamp=none "$APP"
 
-echo "Собрано: ${APP}"
-echo "Подписано: ${identity}"
+echo "Built: ${APP}"
+echo "Signed with: ${identity}"

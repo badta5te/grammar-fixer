@@ -62,7 +62,7 @@ public final class HotKey {
                 &sharedHandler
             )
             guard status == noErr else {
-                Log.write("InstallEventHandler не удался: \(status)")
+                Log.write("InstallEventHandler failed: \(status)")
                 return nil
             }
         }
@@ -79,7 +79,7 @@ public final class HotKey {
             &reference
         )
         guard status == noErr else {
-            Log.write("RegisterEventHotKey не удался: \(status)")
+            Log.write("RegisterEventHotKey failed: \(status)")
             return nil
         }
 
