@@ -93,3 +93,53 @@ final class FakeClock {
         onTick(ticks)
     }
 }
+
+@MainActor
+final class FakeEnvironment: RoundTripEnvironment {
+    private let recorder: Recorder
+    var isAccessibilityTrusted = true
+    var isSecureInputActive = false
+    var frontmostApplication: NSRunningApplication? = .current
+    private(set) var beeps = 0
+
+    init(recorder: Recorder) { self.recorder = recorder }
+
+    func beep() {
+        recorder.record("beep")
+        beeps += 1
+    }
+}
+
+@MainActor
+final class FakeNotices: NoticePresenting {
+    private(set) var shown: [any UserFacingError] = []
+
+    func show(_ error: any UserFacingError) { shown.append(error) }
+}
+
+/// Модель, которую можно задержать. Круг с настоящей моделью длится секунды, и
+/// проверять поведение во время ожидания нужно именно так.
+@MainActor
+final class FakeTransform: TextTransforming {
+    private let recorder: Recorder
+    var answer: Swift.Result<String, any Error> = .success("исправлено")
+    var waitsForRelease = false
+    private(set) var received: [String] = []
+    private var gate: CheckedContinuation<Void, Never>?
+
+    init(recorder: Recorder) { self.recorder = recorder }
+
+    func transform(_ text: String) async throws -> String {
+        recorder.record("transform")
+        received.append(text)
+        if waitsForRelease {
+            await withCheckedContinuation { gate = $0 }
+        }
+        return try answer.get()
+    }
+
+    func release() {
+        gate?.resume()
+        gate = nil
+    }
+}

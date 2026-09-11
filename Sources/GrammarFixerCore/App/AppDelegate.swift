@@ -19,13 +19,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let clipboard = SystemClipboard()
         let keyboard = SystemKeyboard()
+        let notices = NoticePanel()
         let roundTrip = RoundTripController(
             settings: settings,
             clipboard: clipboard,
             capture: TextCapture(clipboard: clipboard, keyboard: keyboard),
             paster: TextPaster(clipboard: clipboard, keyboard: keyboard, focus: FocusRestorer()),
-            transform: UppercasePlaceholder(),
-            notices: NoticePanel(),
+            transform: LLMTextTransformer(),
+            notices: notices,
             onAccessibilityDenied: { [onboarding] in onboarding.show() }
         )
         roundTrip.registerHotKey()
@@ -33,6 +34,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menuBar = MenuBarController(
             settings: settings,
+            notices: notices,
             onFixSelection: { roundTrip.run() },
             onShowOnboarding: { [onboarding] in onboarding.show() }
         )

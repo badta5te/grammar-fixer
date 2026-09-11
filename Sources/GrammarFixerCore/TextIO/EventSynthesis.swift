@@ -23,6 +23,10 @@ public final class SystemKeyboard: SyntheticKeyboard {
     /// Предел на длину строки в одном событии есть, поэтому набор режется.
     private let chunkSize = 20
 
+    /// Приложения с отложенной обработкой ввода теряют символы, если куски
+    /// идут вплотную. Величина мала настолько, что на глаз не видна.
+    private let chunkPause: TimeInterval = 0.004
+
     public init() {}
 
     public func copy() {
@@ -53,6 +57,12 @@ public final class SystemKeyboard: SyntheticKeyboard {
             keyUp.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: chunk)
             keyDown.post(tap: .cghidEventTap)
             keyUp.post(tap: .cghidEventTap)
+
+            // Пауза между кусками. Подтверждения доставки у набора нет, в
+            // отличие от захвата со счётчиком буфера, поэтому единственная
+            // защита от потери символов на стыке — не гнать события вплотную.
+            // Абзац стоит около сорока миллисекунд ожидания.
+            if index < units.count { Thread.sleep(forTimeInterval: chunkPause) }
         }
     }
 

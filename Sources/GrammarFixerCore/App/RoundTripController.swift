@@ -1,7 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Круг целиком: хоткей, захват, преобразование, вставка.
+/// Круг целиком: хоткей, захват, исправление моделью, вставка.
 ///
 /// Каждая ветка выхода отсюда чем-то заканчивается — сигналом, сообщением или
 /// онбордингом. Тихих отказов не остаётся ни одного: тихий отказ здесь значит,
@@ -13,7 +13,8 @@ public final class RoundTripController {
     private let capture: TextCapture
     private let paster: TextPaster
     private let transform: TextTransforming
-    private let notices: NoticePanel
+    private let notices: any NoticePresenting
+    private let environment: any RoundTripEnvironment
     private let onAccessibilityDenied: () -> Void
 
     private var hotKey: HotKey?
@@ -25,7 +26,8 @@ public final class RoundTripController {
         capture: TextCapture,
         paster: TextPaster,
         transform: TextTransforming,
-        notices: NoticePanel,
+        notices: any NoticePresenting,
+        environment: any RoundTripEnvironment = SystemEnvironment(),
         onAccessibilityDenied: @escaping () -> Void
     ) {
         self.settings = settings
@@ -34,6 +36,7 @@ public final class RoundTripController {
         self.paster = paster
         self.transform = transform
         self.notices = notices
+        self.environment = environment
         self.onAccessibilityDenied = onAccessibilityDenied
     }
 
@@ -47,12 +50,24 @@ public final class RoundTripController {
         ) { [weak self] in
             self?.run()
         }
-        Log.write(hotKey == nil ? "хоткей ⇧⌃⌥⌘G зарегистрировать НЕ удалось" : "хоткей ⇧⌃⌥⌘G зарегистрирован")
+        guard hotKey == nil else {
+            Log.write("хоткей ⇧⌃⌥⌘G зарегистрирован")
+            return
+        }
+        // Комбинацию мог занять кто-то другой — тот же Raycast, ради отказа от
+        // которого всё затевалось. Без сообщения человек получает приложение,
+        // которое просто ничего не делает, и никакого способа это понять.
+        Log.write("хоткей ⇧⌃⌥⌘G зарегистрировать НЕ удалось")
+        notices.show(RoundTripError.hotKeyUnavailable)
     }
 
     public func run() {
         guard !isRunning else {
+            // Круг с моделью длится секунды. Второе нажатие человек делает
+            // именно потому, что не видит результата, и молчание в ответ
+            // читается как «хоткей сломался».
             Log.write("повторное нажатие во время круга, пропущено")
+            environment.beep()
             return
         }
         isRunning = true
@@ -63,13 +78,13 @@ public final class RoundTripController {
     }
 
     private func roundTrip() async {
-        let sourceApp = NSWorkspace.shared.frontmostApplication
+        let sourceApp = environment.frontmostApplication
         Log.section("хоткей: \(sourceApp?.localizedName ?? "неизвестно")")
         Log.write("флаги: \(ModifierFlags.describeCurrent()), способ вставки: \(settings.pasteMethod.rawValue)")
 
         // Доступ спрашивается заново на каждом круге: его можно отозвать в
         // системных настройках, и тогда круг обязан привести к онбордингу.
-        guard Accessibility.isTrusted else {
+        guard environment.isAccessibilityTrusted else {
             Log.write("доступа Accessibility нет, показываем онбординг")
             onAccessibilityDenied()
             return
@@ -78,14 +93,14 @@ public final class RoundTripController {
         // Без этой проверки защищённый ввод неотличим от пустого выделения:
         // события не доставляются молча, счётчик буфера не двигается, и человек
         // получает «ничего не выделено» там, где текст выделен.
-        guard !SecureInput.isActive else {
+        guard !environment.isSecureInputActive else {
             Log.write("защищённый ввод включён, захват невозможен")
-            notices.show(.secureInputActive)
+            notices.show(RoundTripError.secureInputActive)
             return
         }
 
         guard let sourceApp else {
-            notices.show(.unknownTargetApp)
+            notices.show(RoundTripError.unknownTargetApp)
             return
         }
 
@@ -94,7 +109,7 @@ public final class RoundTripController {
         case .nothingSelected:
             // Сигнал сразу, а присмотр за буфером продолжается ещё полсекунды:
             // быстрый отказ и защита от опоздавшей копии — разные сроки.
-            NSSound.beep()
+            environment.beep()
             if settings.restoreClipboardAfterPaste {
                 // Присмотр держит круг открытым намеренно. Отпустить его в
                 // отдельную задачу значило бы разрешить следующему кругу
@@ -107,20 +122,39 @@ public final class RoundTripController {
             if settings.restoreClipboardAfterPaste {
                 clipboard.restore(result.snapshot)
             }
-            notices.show(.unsupportedSelection)
+            notices.show(RoundTripError.unsupportedSelection)
 
         case .captured(let text):
-            let fixed = await transform.transform(text)
-            let outcome = await paster.paste(
-                fixed,
-                into: sourceApp,
-                method: settings.pasteMethod,
-                restoreClipboard: settings.restoreClipboardAfterPaste,
-                snapshot: result.snapshot
-            )
-            if case .failure(let error) = outcome {
-                notices.show(error)
+            await fix(text, in: sourceApp, snapshot: result.snapshot)
+        }
+    }
+
+    private func fix(_ text: String, in sourceApp: NSRunningApplication, snapshot: ClipboardSnapshot) async {
+        let fixed: String
+        do {
+            fixed = try await transform.transform(text)
+        } catch {
+            // К этому месту выделение человека уже лежит в буфере обмена: его
+            // положил туда захват. Отказ модели без возврата снимка означал бы,
+            // что оборвавшаяся сеть молча съела содержимое буфера.
+            if settings.restoreClipboardAfterPaste {
+                clipboard.restore(snapshot)
             }
+            let failure = (error as? any UserFacingError) ?? LLMError.from(error)
+            Log.write("исправление не состоялось: \(failure.title)")
+            notices.show(failure)
+            return
+        }
+
+        let outcome = await paster.paste(
+            fixed,
+            into: sourceApp,
+            method: settings.pasteMethod,
+            restoreClipboard: settings.restoreClipboardAfterPaste,
+            snapshot: snapshot
+        )
+        if case .failure(let error) = outcome {
+            notices.show(error)
         }
     }
 }

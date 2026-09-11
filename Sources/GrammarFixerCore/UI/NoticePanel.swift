@@ -5,14 +5,14 @@ import SwiftUI
 /// неактивно, и модальное окно может не получить ни фокуса, ни показа. Панель
 /// со свойствами FloatingPanel показывается гарантированно.
 @MainActor
-public final class NoticePanel {
+public final class NoticePanel: NoticePresenting {
     private var panel: FloatingPanel?
     private var dismissTask: Task<Void, Never>?
 
     public init() {}
 
-    public func show(_ error: RoundTripError, timeout: TimeInterval = 8) {
-        show(title: error.title, message: error.message, timeout: timeout)
+    public func show(_ error: any UserFacingError) {
+        show(title: error.title, message: error.message)
     }
 
     public func show(title: String, message: String, timeout: TimeInterval = 8) {

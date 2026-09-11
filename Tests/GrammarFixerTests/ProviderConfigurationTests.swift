@@ -1,0 +1,113 @@
+import XCTest
+@testable import GrammarFixerCore
+
+/// Настроек с интерфейсом ещё нет, они придут тикетом 06. Пока провайдер
+/// описан файлом, и разбор этого файла — единственное место, где пользователь
+/// может ошибиться молча.
+final class ProviderConfigurationTests: XCTestCase {
+    private let path = "~/.config/grammar-fixer/config.json"
+
+    private func make(_ json: String?, environment: [String: String] = [:]) throws -> ProviderConfiguration {
+        try ProviderConfiguration.make(
+            fileContents: json?.data(using: .utf8),
+            environment: environment,
+            path: path
+        )
+    }
+
+    func testPresetGivesTheBaseUrl() throws {
+        let config = try make(#"{"provider":"deepseek","model":"deepseek-chat","apiKey":"k"}"#)
+        XCTAssertEqual(config.baseURL.absoluteString, "https://api.deepseek.com/v1")
+        XCTAssertEqual(config.model, "deepseek-chat")
+        XCTAssertEqual(config.apiKey, "k")
+    }
+
+    func testExplicitBaseUrlWins() throws {
+        let config = try make(
+            #"{"provider":"openai","model":"m","apiKey":"k","baseURL":"http://localhost:1234/v1"}"#
+        )
+        XCTAssertEqual(config.baseURL.absoluteString, "http://localhost:1234/v1")
+    }
+
+    func testAnyOpenAiCompatibleEndpointWorksWithoutAPreset() throws {
+        let config = try make(#"{"model":"m","apiKey":"k","baseURL":"http://localhost:11434/v1"}"#)
+        XCTAssertEqual(config.baseURL.absoluteString, "http://localhost:11434/v1")
+    }
+
+    func testEnvironmentOverridesTheFile() throws {
+        let config = try make(
+            #"{"provider":"openai","model":"gpt-4o-mini","apiKey":"from-file"}"#,
+            environment: ["GRAMMARFIXER_API_KEY": "from-env", "GRAMMARFIXER_MODEL": "other"]
+        )
+        XCTAssertEqual(config.apiKey, "from-env")
+        XCTAssertEqual(config.model, "other")
+    }
+
+    /// Первый запуск после этого тикета — это запуск без файла. Он обязан
+    /// объяснить, что делать, а не упасть сетевой ошибкой.
+    func testMissingFileNamesItself() {
+        XCTAssertThrowsError(try make(nil)) { error in
+            XCTAssertEqual(error as? LLMError, .noConfiguration(path: path))
+        }
+    }
+
+    func testBrokenJsonSaysSo() {
+        XCTAssertThrowsError(try make("{это не json")) { error in
+            guard case LLMError.brokenConfiguration(let path, _)? = error as? LLMError else {
+                return XCTFail("ожидался разбор файла, получено \(error)")
+            }
+            XCTAssertEqual(path, self.path)
+        }
+    }
+
+    func testEmptyKeyIsTheSameAsNoKey() {
+        XCTAssertThrowsError(try make(#"{"provider":"openai","model":"m","apiKey":"  "}"#)) { error in
+            XCTAssertEqual(error as? LLMError, .noKey(path: path))
+        }
+    }
+
+    func testMissingModelIsNamed() {
+        XCTAssertThrowsError(try make(#"{"provider":"openai","apiKey":"k"}"#)) { error in
+            guard case LLMError.brokenConfiguration(_, let reason)? = error as? LLMError else {
+                return XCTFail("ожидался разбор файла, получено \(error)")
+            }
+            XCTAssertTrue(reason.contains("model"))
+        }
+    }
+
+    func testUnknownProviderWithoutBaseUrlIsNamed() {
+        XCTAssertThrowsError(try make(#"{"provider":"выдумка","model":"m","apiKey":"k"}"#)) { error in
+            guard case LLMError.brokenConfiguration(_, let reason)? = error as? LLMError else {
+                return XCTFail("ожидался разбор файла, получено \(error)")
+            }
+            XCTAssertTrue(reason.contains("baseURL"))
+        }
+    }
+
+    func testUsageRequestIsOnUnlessTurnedOff() throws {
+        let on = try make(#"{"provider":"openai","model":"m","apiKey":"k"}"#)
+        XCTAssertTrue(on.requestsUsage)
+        let off = try make(#"{"provider":"openai","model":"m","apiKey":"k","requestUsage":false}"#)
+        XCTAssertFalse(off.requestsUsage)
+    }
+}
+
+/// Заготовку файла никто не проверяет глазами, а неверная заготовка встречает
+/// человека ровно на первом запуске.
+extension ProviderConfigurationTests {
+    func testTheTemplateIsValidAndOnlyMissesTheKey() {
+        XCTAssertThrowsError(
+            try ProviderConfiguration.make(
+                fileContents: ProviderConfigurationFile.template.data(using: .utf8),
+                environment: [:],
+                path: path
+            )
+        ) { error in
+            XCTAssertEqual(error as? LLMError, .noKey(path: path))
+        }
+    }
+
+    func testTheTemplateStartsWithAnOpeningBrace() {
+        XCTAssertTrue(ProviderConfigurationFile.template.hasPrefix("{"))
+    }
+}

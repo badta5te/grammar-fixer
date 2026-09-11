@@ -10,6 +10,7 @@ import AppKit
 final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let settings: Settings
+    private let notices: any NoticePresenting
     private let onFixSelection: () -> Void
     private let onShowOnboarding: () -> Void
 
@@ -19,10 +20,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     init(
         settings: Settings,
+        notices: any NoticePresenting,
         onFixSelection: @escaping () -> Void,
         onShowOnboarding: @escaping () -> Void
     ) {
         self.settings = settings
+        self.notices = notices
         self.onFixSelection = onFixSelection
         self.onShowOnboarding = onShowOnboarding
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -57,6 +60,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let onboarding = NSMenuItem(title: "Accessibility Access…", action: #selector(showOnboarding), keyEquivalent: "")
         onboarding.target = self
         menu.addItem(onboarding)
+
+        // Провайдер и ключ пока живут файлом: окно настроек придёт тикетом 06.
+        // Без этого пункта человеку остаётся искать путь в тексте ошибки.
+        let provider = NSMenuItem(title: "Provider and Key…", action: #selector(openProviderFile), keyEquivalent: "")
+        provider.target = self
+        menu.addItem(provider)
 
         menu.addItem(.separator())
 
@@ -117,6 +126,31 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openLog() {
+        // Журнала может не быть вовсе: его выключили, или он только что был
+        // обрезан. Открыть несуществующий файл — это ничего не открыть и
+        // ничего не сказать.
+        guard FileManager.default.fileExists(atPath: Log.fileURL.path) else {
+            notices.show(Notice(
+                title: "No log yet",
+                message: settings.writesLog
+                    ? "Nothing has been logged since the log was last cleared. Run the shortcut once."
+                    : "Writing the log is turned off, so there is nothing to open."
+            ))
+            return
+        }
         NSWorkspace.shared.open(Log.fileURL)
+    }
+
+    @objc private func openProviderFile() {
+        do {
+            let url = try ProviderConfigurationFile().createIfMissing()
+            NSWorkspace.shared.open(url)
+        } catch {
+            notices.show(Notice(
+                title: "The provider file could not be created",
+                message: "GrammarFixer could not write \(ProviderConfigurationFile.displayPath): "
+                    + error.localizedDescription
+            ))
+        }
     }
 }
