@@ -175,6 +175,23 @@ final class RoundTripControllerTests: XCTestCase {
         XCTAssertEqual(clipboard.restored?.items.count, 1)
     }
 
+    /// Typing never touches the clipboard, so restoring the snapshot there is
+    /// not putting something back — it is overwriting whatever the person
+    /// copied while the panel was open.
+    func testTypingLeavesAFreshCopyAlone() async {
+        settings.pasteMethod = .typing
+        results.decide = { [clipboard] session in
+            clipboard!.simulateCopy("скопировано человеком")
+            return .paste(session.result ?? "")
+        }
+        makeController().run()
+        await settle()
+
+        XCTAssertNil(clipboard.restored)
+        XCTAssertEqual(clipboard.text, "скопировано человеком")
+        XCTAssertEqual(keyboard.typed, "исправлено")
+    }
+
     /// A decision that never arrives would leave the round open and the
     /// shortcut dead until a restart. Closing the panel has to free it.
     func testAClosedPanelLeavesTheShortcutWorking() async {

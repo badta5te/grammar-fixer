@@ -158,11 +158,18 @@ public final class RoundTripController {
 
         switch decision {
         case .paste(let fixed):
+            // Typing puts nothing of ours into the clipboard, so restoring
+            // there is only right while the clipboard is still the one we took
+            // over. Pasting overwrites it in any case, and a copy made while
+            // the panel stood open is lost either way.
+            let mayRestore = settings.restoreClipboardAfterPaste
+                && (settings.pasteMethod == .clipboard
+                    || clipboardStillHoldsCapture(text, since: changeCountAfterCapture))
             let outcome = await paster.paste(
                 fixed,
                 into: sourceApp,
                 method: settings.pasteMethod,
-                restoreClipboard: settings.restoreClipboardAfterPaste,
+                restoreClipboard: mayRestore,
                 snapshot: snapshot
             )
             if case .failure(let error) = outcome {
@@ -202,10 +209,18 @@ public final class RoundTripController {
         unlessChangedSince changeCount: Int
     ) {
         guard settings.restoreClipboardAfterPaste else { return }
-        guard clipboard.changeCount == changeCount || clipboard.readText() == capturedText else {
+        guard clipboardStillHoldsCapture(capturedText, since: changeCount) else {
             Log.write("в буфере чужая копия — снимок не возвращается")
             return
         }
         clipboard.restore(snapshot)
+    }
+
+    /// Whether the clipboard is still the one this round took over. Either it
+    /// has not moved since the capture, or what is in it is still the captured
+    /// selection: counting changes alone is too strict, because a terminal with
+    /// copy-on-select moves the count again right after our own ⌘C.
+    private func clipboardStillHoldsCapture(_ capturedText: String, since changeCount: Int) -> Bool {
+        clipboard.changeCount == changeCount || clipboard.readText() == capturedText
     }
 }
